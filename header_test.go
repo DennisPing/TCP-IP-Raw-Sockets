@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
-	"reflect"
 	"strconv"
 	"testing"
 )
@@ -287,8 +286,8 @@ func Test_ConvertIP01(t *testing.T) {
 	ip := getIPHeaderFirstHandshake(t)
 	ip_bytes := ip.ToBytes()
 	ip2 := BytesToIP(ip_bytes)
-	if reflect.DeepEqual(ip, ip2) == false {
-		t.Errorf(Red("IP header conversion failed"))
+	if compareIPHeaders(ip, ip2) == false {
+		t.Errorf(Red("1st handshake IP header conversion failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", ip, ip2)
 	}
 }
@@ -297,8 +296,8 @@ func Test_ConvertIP02(t *testing.T) {
 	ip := getIPHeaderSecondHandshake(t)
 	ip_bytes := ip.ToBytes()
 	ip2 := BytesToIP(ip_bytes)
-	if reflect.DeepEqual(ip, ip2) == false {
-		t.Errorf(Red("IP header conversion failed"))
+	if compareIPHeaders(ip, ip2) == false {
+		t.Errorf(Red("2nd handshake IP header conversion failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", ip, ip2)
 	}
 }
@@ -309,7 +308,7 @@ func Test_ConvertTCP01(t *testing.T) {
 	tcp_bytes := tcp.ToBytes(ip)
 	tcp2 := BytesToTCP(tcp_bytes)
 	if compareTCPHeaders(tcp, tcp2) == false {
-		t.Errorf(Red("TCP header conversion failed"))
+		t.Errorf(Red("1st handshake TCP header conversion failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
 	}
 }
@@ -320,7 +319,7 @@ func Test_ConvertTCP02(t *testing.T) {
 	tcp_bytes := tcp.ToBytes(ip)
 	tcp2 := BytesToTCP(tcp_bytes)
 	if compareTCPHeaders(tcp, tcp2) == false {
-		t.Errorf(Red("TCP header conversion failed"))
+		t.Errorf(Red("2nd handshake TCP header conversion failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
 	}
 }
@@ -335,7 +334,7 @@ func Test_Wrap01(t *testing.T) {
 	packet_hex := hex.EncodeToString(packet)
 	wireshark_hex := "45000040000040004006d3760a6ed06acc2cc03c" + "c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
 	if packet_hex != wireshark_hex {
-		t.Errorf(Red("Wrap packet failed"))
+		t.Errorf(Red("1st handshake Wrap packet failed"))
 		printExpGot(wireshark_hex, packet_hex)
 		printHexIdx(packet_hex)
 	}
@@ -349,7 +348,7 @@ func Test_Wrap02(t *testing.T) {
 	packet_hex := hex.EncodeToString(packet)
 	wireshark_hex := "4500003c000040002a06e97acc2cc03c0a6ed06a" + "0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
 	if packet_hex != wireshark_hex {
-		t.Errorf(Red("Wrap packet failed"))
+		t.Errorf(Red("2nd handshake Wrap packet failed"))
 		printExpGot(wireshark_hex, packet_hex)
 		printHexIdx(packet_hex)
 	}
@@ -361,16 +360,16 @@ func Test_Unwrap01(t *testing.T) {
 	wireshark_hex := "45000040000040004006d3760a6ed06acc2cc03c" + "c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
 	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
 	ip, tcp, payload := UnwrapPacket(wireshark_bytes)
-	if reflect.DeepEqual(ip, getIPHeaderFirstHandshake(t)) == false {
-		t.Errorf(Red("IP header unwrap failed"))
+	if compareIPHeaders(ip, getIPHeaderFirstHandshake(t)) == false {
+		t.Errorf(Red("1st handshake IP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderFirstHandshake(t), ip)
 	}
 	if compareTCPHeaders(tcp, getTCPHeaderFirstHandshake(t)) == false {
-		t.Errorf(Red("TCP header unwrap failed"))
+		t.Errorf(Red("1st handshake TCP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getTCPHeaderFirstHandshake(t), tcp)
 	}
-	if reflect.DeepEqual([]byte{}, payload) == false {
-		t.Errorf(Red("Payload unwrap failed"))
+	if !bytes.Equal([]byte{}, payload) {
+		t.Errorf(Red("1st handshake Payload unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", []byte{}, payload)
 	}
 }
@@ -379,16 +378,16 @@ func Test_Unwrap02(t *testing.T) {
 	wireshark_hex := "4500003c000040002a06e97acc2cc03c0a6ed06a" + "0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
 	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
 	ip, tcp, payload := UnwrapPacket(wireshark_bytes)
-	if reflect.DeepEqual(ip, getIPHeaderSecondHandshake(t)) == false {
-		t.Errorf(Red("IP header unwrap failed"))
+	if compareIPHeaders(ip, getIPHeaderSecondHandshake(t)) == false {
+		t.Errorf(Red("2nd handshake IP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderSecondHandshake(t), ip)
 	}
 	if compareTCPHeaders(tcp, getTCPHeaderSecondHandshake(t)) == false {
-		t.Errorf(Red("TCP header unwrap failed"))
+		t.Errorf(Red("2nd handshake TCP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getTCPHeaderSecondHandshake(t), tcp)
 	}
-	if reflect.DeepEqual([]byte{}, payload) == false {
-		t.Errorf(Red("Payload unwrap failed"))
+	if !bytes.Equal([]byte{}, payload) {
+		t.Errorf(Red("2nd handshake Payload unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", []byte{}, payload)
 	}
 }
@@ -404,6 +403,7 @@ func contains(slice []string, str string) bool {
 	return false
 }
 
+// Split a hex string into chunks of 2 for easier debugging: A1 B2 C3 etc
 func splitHex(hex string) []string {
 	var result []string
 	for i := 0; i < len(hex); i += 2 {
@@ -412,21 +412,61 @@ func splitHex(hex string) []string {
 	return result
 }
 
-func listBytes(len int) []string {
+// Print a slice of indices for easier debugging: 01 02 03 etc
+func printHexIdx(hex string) {
 	var result []string
-	for i := 0; i < len; i++ {
+	for i := 0; i < len(hex)/2; i++ {
 		result = append(result, fmt.Sprintf("%02d", i))
 	}
-	return result
+	fmt.Println(Cyan(fmt.Sprintf("Idx: %v", result)))
 }
 
-func printHexIdx(hex string) {
-	fmt.Println(Cyan(fmt.Sprintf("Idx: %v", listBytes(len(hex)/2))))
-}
-
+// Print the expected and actual values
 func printExpGot(exp, got string) {
 	fmt.Printf("Exp: %v\n", splitHex(exp))
 	fmt.Printf("Got: %v\n", splitHex(got))
+}
+
+func compareIPHeaders(ip1 *IPHeader, ip2 *IPHeader) bool {
+	if ip1.version != ip2.version {
+		return false
+	}
+	if ip1.ihl != ip2.ihl {
+		return false
+	}
+	if ip1.tos != ip2.tos {
+		return false
+	}
+	if ip1.tot_len != ip2.tot_len {
+		return false
+	}
+	if ip1.id != ip2.id {
+		return false
+	}
+	for _, f1 := range ip1.flags {
+		if contains(ip2.flags, f1) == false {
+			return false
+		}
+	}
+	if ip1.frag_offset != ip2.frag_offset {
+		return false
+	}
+	if ip1.ttl != ip2.ttl {
+		return false
+	}
+	if ip1.protocol != ip2.protocol {
+		return false
+	}
+	if ip1.checksum != ip2.checksum {
+		return false
+	}
+	if !net.IP.Equal(ip1.src_addr, ip2.src_addr) {
+		return false
+	}
+	if !net.IP.Equal(ip1.dst_addr, ip2.dst_addr) {
+		return false
+	}
+	return true
 }
 
 func compareTCPHeaders(tcp1 *TCPHeader, tcp2 *TCPHeader) bool {
