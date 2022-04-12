@@ -76,7 +76,6 @@ func (ip *IPHeader) ToBytes() []byte {
 	checksum := IPChecksum(data)
 	binary.BigEndian.PutUint16(data[10:12], checksum)
 	return data
-	// return buf.Bytes()
 }
 
 // Parse an incoming packet and return an IPv4 header
@@ -117,9 +116,7 @@ func IPChecksum(b []byte) uint16 {
 		b = b[2:]
 		count -= 2
 	}
-	if count > 0 {
-		sum += uint32(b[0])
-	}
 	sum = (sum >> 16) + (sum & 0xffff)
-	return ^uint16(sum)
+	sum = sum + (sum >> 16)
+	return uint16(^sum)
 }

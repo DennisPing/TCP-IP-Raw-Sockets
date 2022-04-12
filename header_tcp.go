@@ -131,9 +131,7 @@ func TCPChecksum(b []byte, ip *IPHeader) uint16 {
 	if len(data)%2 != 0 {
 		sum += uint32(data[len(data)-1])
 	}
-
 	sum = (sum >> 16) + (sum & 0xffff)
 	sum = sum + (sum >> 16)
-
 	return uint16(^sum)
 }

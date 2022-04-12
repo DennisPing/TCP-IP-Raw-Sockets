@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/hex"
 	"fmt"
 	"net"
@@ -307,7 +308,7 @@ func Test_ConvertTCP01(t *testing.T) {
 	tcp := getTCPHeaderFirstHandshake(t)
 	tcp_bytes := tcp.ToBytes(ip)
 	tcp2 := BytesToTCP(tcp_bytes)
-	if reflect.DeepEqual(tcp, tcp2) == false {
+	if compareTCPHeaders(tcp, tcp2) == false {
 		t.Errorf(Red("TCP header conversion failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
 	}
@@ -318,7 +319,7 @@ func Test_ConvertTCP02(t *testing.T) {
 	tcp := getTCPHeaderSecondHandshake(t)
 	tcp_bytes := tcp.ToBytes(ip)
 	tcp2 := BytesToTCP(tcp_bytes)
-	if reflect.DeepEqual(tcp, tcp2) == false {
+	if compareTCPHeaders(tcp, tcp2) == false {
 		t.Errorf(Red("TCP header conversion failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
 	}
@@ -364,7 +365,7 @@ func Test_Unwrap01(t *testing.T) {
 		t.Errorf(Red("IP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderFirstHandshake(t), ip)
 	}
-	if reflect.DeepEqual(tcp, getTCPHeaderFirstHandshake(t)) == false {
+	if compareTCPHeaders(tcp, getTCPHeaderFirstHandshake(t)) == false {
 		t.Errorf(Red("TCP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getTCPHeaderFirstHandshake(t), tcp)
 	}
@@ -374,7 +375,26 @@ func Test_Unwrap01(t *testing.T) {
 	}
 }
 
+func Test_Unwrap02(t *testing.T) {
+	wireshark_hex := "4500003c000040002a06e97acc2cc03c0a6ed06a" + "0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
+	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
+	ip, tcp, payload := UnwrapPacket(wireshark_bytes)
+	if reflect.DeepEqual(ip, getIPHeaderSecondHandshake(t)) == false {
+		t.Errorf(Red("IP header unwrap failed"))
+		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderSecondHandshake(t), ip)
+	}
+	if compareTCPHeaders(tcp, getTCPHeaderSecondHandshake(t)) == false {
+		t.Errorf(Red("TCP header unwrap failed"))
+		fmt.Printf("Exp: %v\nGot: %v\n", getTCPHeaderSecondHandshake(t), tcp)
+	}
+	if reflect.DeepEqual([]byte{}, payload) == false {
+		t.Errorf(Red("Payload unwrap failed"))
+		fmt.Printf("Exp: %v\nGot: %v\n", []byte{}, payload)
+	}
+}
+
 // Random helper functions **************************************************************
+
 func contains(slice []string, str string) bool {
 	for _, v := range slice {
 		if v == str {
@@ -409,6 +429,47 @@ func printExpGot(exp, got string) {
 	fmt.Printf("Got: %v\n", splitHex(got))
 }
 
+func compareTCPHeaders(tcp1 *TCPHeader, tcp2 *TCPHeader) bool {
+	if tcp1.src_port != tcp2.src_port {
+		return false
+	}
+	if tcp1.dst_port != tcp2.dst_port {
+		return false
+	}
+	if tcp1.seq_num != tcp2.seq_num {
+		return false
+	}
+	if tcp1.ack_num != tcp2.ack_num {
+		return false
+	}
+	if tcp1.data_offset != tcp2.data_offset {
+		return false
+	}
+	if tcp1.reserved != tcp2.reserved {
+		return false
+	}
+	for _, f1 := range tcp1.flags {
+		if !contains(tcp2.flags, f1) {
+			return false
+		}
+	}
+	if tcp1.window != tcp2.window {
+		return false
+	}
+	if tcp1.checksum != tcp2.checksum {
+		return false
+	}
+	if tcp1.urgent != tcp2.urgent {
+		return false
+	}
+	if !bytes.Equal(tcp1.options, tcp2.options) {
+		return false
+	}
+	return true
+}
+
+// Developer message ********************************************************************
+
 func Test_DeveloperMessage(t *testing.T) {
-	fmt.Println(Blue("Dev note: TCPFlags and IPFlags use unordered map, so sometimes the assertion is out of order."))
+	fmt.Println(Blue("Dev note: TCPFlags and IPFlags use unordered map, so a manual compare function was created."))
 }
