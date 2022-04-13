@@ -19,6 +19,7 @@ type TCPHeader struct {
 	checksum    uint16
 	urgent      uint16
 	options     []byte
+	payload     []byte
 }
 
 var TCPFlags = map[string]int{
@@ -70,6 +71,7 @@ func (tcp *TCPHeader) ToBytes(ip *IPHeader) []byte {
 	binary.Write(buf, binary.BigEndian, uint16(0)) // Checksum
 	binary.Write(buf, binary.BigEndian, tcp.urgent)
 	binary.Write(buf, binary.BigEndian, tcp.options)
+	binary.Write(buf, binary.BigEndian, tcp.payload)
 	data := buf.Bytes()
 	// Pad data with zeros until length is minimum 20 bytes
 	for i := 0; i < 20-len(data); i++ {
@@ -103,32 +105,32 @@ func BytesToTCP(data []byte) *TCPHeader {
 	if tcp.data_offset > 5 {
 		tcp.options = data[20 : tcp.data_offset*4]
 	} else {
-		tcp.options = make([]byte, 0)
+		tcp.options = []byte{}
 	}
+	tcp.payload = data[tcp.data_offset*4:]
 	return tcp
 }
 
 // Wiki: https://en.wikipedia.org/wiki/Transmission_Control_Protocol#Checksum_computation
 // Explanation: https://gist.github.com/david-hoze/0c7021434796997a4ca42d7731a7073a
 func TCPChecksum(b []byte, ip *IPHeader) uint16 {
+	tcp_seg_length := ip.tot_len - uint16(ip.ihl*4)
 	pseudo_header := make([]byte, 12)
 	copy(pseudo_header[0:4], ip.src_addr.To4())
 	copy(pseudo_header[4:8], ip.dst_addr.To4())
-	copy(pseudo_header[8:10], []byte{0, 6})             // Fixed 0 and protocol number 6
-	copy(pseudo_header[10:12], []byte{0, byte(len(b))}) // Length of b
-	data := make([]byte, 0, len(pseudo_header)+len(b))
+	copy(pseudo_header[8:10], []byte{0, 6})                                             // Fixed 0 and protocol number 6
+	copy(pseudo_header[10:12], []byte{byte(tcp_seg_length >> 8), byte(tcp_seg_length)}) // TCP segment length
+	data := make([]byte, 0, len(pseudo_header)+int(tcp_seg_length))
 	data = append(data, pseudo_header...)
 	data = append(data, b...)
 
 	// This shit is too hard
 	// https://stackoverflow.com/questions/62329005/how-to-calculate-tcp-packet-checksum-correctly
-	var word uint16
 	var sum uint32
 	for i := 0; i+1 < len(data); i += 2 {
-		word = uint16(data[i])<<8 | uint16(data[i+1])
-		sum += uint32(word)
+		sum += uint32(data[i])<<8 | uint32(data[i+1])
 	}
-	if len(data)%2 != 0 {
+	if len(data)%2 != 0 { // If data has odd length, make sure to add the last byte
 		sum += uint32(data[len(data)-1])
 	}
 	sum = (sum >> 16) + (sum & 0xffff)

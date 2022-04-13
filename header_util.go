@@ -3,8 +3,7 @@ package main
 // Unwrap a packet and return (1) IP Header (2) TCP Header (3) Payload in bytes
 func UnwrapPacket(packet []byte) (*IPHeader, *TCPHeader, []byte) {
 	ip := BytesToIP(packet[:20])
-	// tcp_size := int(packet[32]) * 4
-	tcp_size := ip.tot_len - uint16(ip.ihl<<2)
+	tcp_size := ip.tot_len - uint16(ip.ihl*4)
 	tcp := BytesToTCP(packet[20 : 20+tcp_size])
 
 	payload := make([]byte, 0)

@@ -7,7 +7,6 @@ func InitSocketSender(addr *syscall.SockaddrInet4) int {
 	if err != nil {
 		panic(err)
 	}
-	defer syscall.Close(sock_send)
 	err = syscall.Connect(sock_send, addr)
 	if err != nil {
 		panic(err)
@@ -20,6 +19,5 @@ func InitSocketReceiver() int {
 	if err != nil {
 		panic(err)
 	}
-	defer syscall.Close(sock_recv)
 	return sock_recv
 }

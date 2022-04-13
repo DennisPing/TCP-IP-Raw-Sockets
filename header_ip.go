@@ -109,12 +109,9 @@ func BytesToIP(packet []byte) *IPHeader {
 // RFC 1071: https://datatracker.ietf.org/doc/html/rfc1071
 // Explanation: https://gist.github.com/david-hoze/0c7021434796997a4ca42d7731a7073a
 func IPChecksum(b []byte) uint16 {
-	sum := uint32(0)
-	count := (b[0] & 0x0f) << 2 // Black magic. Byte 0 is [version|ihl] and we want the ihl
-	for count > 1 {
-		sum += uint32(b[0])<<8 | uint32(b[1])
-		b = b[2:]
-		count -= 2
+	var sum uint32
+	for i := 0; i+1 < len(b); i += 2 {
+		sum += uint32(b[i])<<8 | uint32(b[i+1])
 	}
 	sum = (sum >> 16) + (sum & 0xffff)
 	sum = sum + (sum >> 16)

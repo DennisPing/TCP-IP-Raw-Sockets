@@ -30,7 +30,41 @@ func Color(colorString string) func(...interface{}) string {
 	return sprint
 }
 
-// Test bit shifting flags **************************************************************
+// Setup variables for testing **********************************************************
+
+var giant_payload string = "485454502f312e3120323030204f4b0d0a446174653a205468752c203331204d61722" +
+	"0323032322032303a35383a303220474d540d0a5365727665723a204170616368650d0a55706772616465" +
+	"3a2068322c6832630d0a436f6e6e656374696f6e3a20557067726164652c204b6565702d416c6976650d0" +
+	"a566172793a204163636570742d456e636f64696e672c557365722d4167656e740d0a436f6e74656e742d" +
+	"456e636f64696e673a20677a69700d0a4b6565702d416c6976653a2074696d656f75743d322c206d61783" +
+	"d3130300d0a5472616e736665722d456e636f64696e673a206368756e6b65640d0a436f6e74656e742d54" +
+	"7970653a20746578742f68746d6c3b20636861727365743d5554462d380d0a0d0a316661610d0a1f8b080" +
+	"00000000000036c8f414bc4301085effe8a31e7b65b4151966641da154f5a582f1e43326947d3a424d3d6" +
+	"9f6fbb2be8c1d3e3cdc0f7deabae9bd7faedbd3d42cf833b5c559b8053be9302bdd80ea8cc2a03b202dda" +
+	"b9890a598d8e60fdb97891d1eda183e5033dceea13ec1dd7d59c2d3e48d1ad0b3720982853a0ce3c418e1" +
+	"057909f1937cb78746cd64a0ee83b51e53066d5f3445b5bb407f32fd4a9162265cc61059800e9e57ac140" +
+	"b19eea5c19934e66793017962522e4f5a39943745b9753c57bf600c261d69640afe0fe9390c38aa0ec186" +
+	"f87fa70c1e530a9a1423ac632dae2eae69bfb34e9ad06bcce0f8857afa6693ec791a868130bcf32b8ec98" +
+	"9444281818faa434519582a964e55551d5793045a3bd8e78888fe78ee1a86aaea14f93eecf779df70d359" +
+	"9835414c9139c1e7dac273ff6ec53e4aa1e11ed06de4aaa643eae1d54561167b0019e68229a64731cbc1c" +
+	"2c94d21cac2090926ae7d3882d0fe6521e4ca07dcb7e21adb1fbefec40e87aa8c5c007418605de1374c86" +
+	"cf7e0fcbd5581a5a2cdb14eb6c69d612f394c827c7e60acc625adc3edc8d1e47f7c58d59e5e7a6677e878" +
+	"d9b4b5aba40ff9996e477e71638207dbd89e71aec614004641fc9916693e5f02be7416b85a274e329e9df" +
+	"5452b012c2cbd6ea29330398c9c75061a9d0326b4eb0cda189b177245d0ec9aa7ed08d18b494999ab98d4" +
+	"f0626472f6d3da18a29dbe0ff98a87ade0661203ad7bfe2c44292169ca903495a295dab4eddaa0e062e0e" +
+	"8dc321ce1565c87fef191325133c73dce97d9c3d55e4e015e642ad995d0a45c485d6c330a44b788434b74" +
+	"4d661665ae346df541c04d032e987d33835c8cff78c2cfa990eefc74f63838437625febef0d70de995ef8" +
+	"7e508d79d332f67e8f12565c58f3043cf971592ee4a9b63a4a926562b6408904bc23b01f1d3284d3ad6bd" +
+	"a131c7b3cec92c85beb3a2c627e6f9a2e893c8b4d9dae986f281794408f6e97c49e47441fb237a1175552" +
+	"3dcee675a6ae65cd334f5d01cfebee6f037a35bd8027389b1382047d5a68498e5c0d96c038371d0e660c4" +
+	"5e17b49ded3f9ba44d2ac1405575a3d5cfbc7827984ba282553de7e39fc142e8bd8fb9fb46ad94d180682" +
+	"67f215dbf65ad3d028290d522e88aa48edad37c4c1344e70e53ce404a8c4cf77d60e121c2a2171f57a77d" +
+	"6bb3363248c6bb9e7dc6350495bea3aa59020a3c6efa592bfde45529a86dc2c2a617943bea8a5b5cde1a6" +
+	"dc0c433f2b1001844207e31b130546aeac28ade2115ed7e488c92ea4d125def30d8e287b5692c69bbe46e" +
+	"fc3bb478569649f9251457fba25acca81067e3736c56273177017ad2eb73d46501c039fe80e6641dbc090" +
+	"a00cbe6e247bdd2c70a194c4e4d9cdce372f182815133f4f0ff1902451349f3b9476b70134d181ad1c0b7" +
+	"c8987b9732023a32fa2f1b015509cd97c2b93f1f0ae6dea0eedff47eac0ebe7fdebf323a66eabab47f745" +
+	"2c17899852b76bf9476262fa0bca38531a5406e1ad74"
 
 func getIPHeaderFirstHandshake(t *testing.T) *IPHeader {
 	var ip IPHeader
@@ -39,6 +73,7 @@ func getIPHeaderFirstHandshake(t *testing.T) *IPHeader {
 	ip.ihl = combo1 & 0xf    // 5
 	ip.tos = uint8(0)
 	ip.tot_len = uint16(64)
+	ip.id = uint16(0)
 	ip.flags = []string{"DF"}
 	ip.frag_offset = uint16(0)
 	ip.ttl = uint8(64)
@@ -56,11 +91,31 @@ func getIPHeaderSecondHandshake(t *testing.T) *IPHeader {
 	ip.ihl = combo1 & 0xf    // 5
 	ip.tos = uint8(0)
 	ip.tot_len = uint16(60)
+	ip.id = uint16(0)
 	ip.flags = []string{"DF"}
 	ip.frag_offset = uint16(0)
 	ip.ttl = uint8(42)
 	ip.protocol = uint8(6)
 	ip.checksum = uint16(59770)
+	ip.src_addr = net.IPv4(204, 44, 192, 60).To4()
+	ip.dst_addr = net.IPv4(10, 110, 208, 106).To4()
+	return &ip
+}
+
+// This is a trivial IP Header. To be used with a TCP Header that contains a payload
+func getIPHeaderWithPayload(t *testing.T) *IPHeader {
+	var ip IPHeader
+	var combo1 uint8 = (4 << 4) | 5
+	ip.version = combo1 >> 4 // 4
+	ip.ihl = combo1 & 0xf    // 5
+	ip.tos = uint8(0)
+	ip.tot_len = uint16(1426)
+	ip.id = uint16(17988)
+	ip.flags = []string{"DF"}
+	ip.frag_offset = uint16(0)
+	ip.ttl = uint8(42)
+	ip.protocol = uint8(6)
+	ip.checksum = uint16(40416)
 	ip.src_addr = net.IPv4(204, 44, 192, 60).To4()
 	ip.dst_addr = net.IPv4(10, 110, 208, 106).To4()
 	return &ip
@@ -79,6 +134,7 @@ func getTCPHeaderFirstHandshake(t *testing.T) *TCPHeader {
 	tcp.checksum = uint16(37527)
 	tcp.urgent = uint16(0)
 	tcp.options, _ = hex.DecodeString("020405b4010303060101080abb6879f80000000004020000")
+	tcp.payload = []byte{}
 	return &tcp
 }
 
@@ -95,8 +151,28 @@ func getTCPHeaderSecondHandshake(t *testing.T) *TCPHeader {
 	tcp.checksum = uint16(39262)
 	tcp.urgent = uint16(0)
 	tcp.options, _ = hex.DecodeString("0204056a0402080abeb95cb5bb6879f801030307")
+	tcp.payload = []byte{}
 	return &tcp
 }
+
+func getTCPHeaderWithPayload(t *testing.T) *TCPHeader {
+	var tcp TCPHeader
+	tcp.src_port = uint16(80)
+	tcp.dst_port = uint16(50871)
+	tcp.seq_num = uint32(1654659911)
+	tcp.ack_num = uint32(2753994376)
+	tcp.data_offset = uint8(8)
+	tcp.reserved = uint8(0)
+	tcp.flags = []string{"ACK"}
+	tcp.window = uint16(235)
+	tcp.checksum = uint16(29098)
+	tcp.urgent = uint16(0)
+	tcp.options, _ = hex.DecodeString("0101080abeb95f0abb687a45")
+	tcp.payload, _ = hex.DecodeString(giant_payload)
+	return &tcp
+}
+
+// Test bit shifting flags **************************************************************
 
 func Test_IPFlagsBitshift01(t *testing.T) {
 	flags := []string{"DF"}
@@ -280,6 +356,43 @@ func Test_TCPChecksumHandshake02(t *testing.T) {
 	}
 }
 
+// This is a trivial test. Just to make sure the next test works properly.
+func Test_IPChecksumWithPayload(t *testing.T) {
+	ip := getIPHeaderWithPayload(t)
+	ip_bytes := ip.ToBytes()
+	wireshark_ip_hex := "45000592464440002a069de0cc2cc03c0a6ed06a"
+	if IPChecksum(ip_bytes) != 0 {
+		t.Errorf(Red("IP checksum with payload failed"))
+		ip_hex := hex.EncodeToString(ip_bytes)
+		printExpGot(wireshark_ip_hex, ip_hex)
+		printHexIdx(ip_hex)
+	}
+	if hex.EncodeToString(ip_bytes) != wireshark_ip_hex {
+		t.Errorf(Red("IP encoding with payload failed"))
+		ip_hex := hex.EncodeToString(ip_bytes)
+		printExpGot(wireshark_ip_hex, ip_hex)
+		printHexIdx(ip_hex)
+	}
+}
+
+func Test_TCPChecksumWithPayload(t *testing.T) {
+	ip := getIPHeaderWithPayload(t)
+	tcp := getTCPHeaderWithPayload(t)
+	tcp_bytes := tcp.ToBytes(ip)
+	wireshark_tcp_hex := "0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + giant_payload
+	if TCPChecksum(tcp_bytes, ip) != 0 {
+		t.Errorf(Red("TCP checksum with payload failed"))
+		tcp_hex := hex.EncodeToString(tcp_bytes)
+		printExpGot(wireshark_tcp_hex, tcp_hex)
+		printHexIdx(tcp_hex)
+	}
+	if hex.EncodeToString(tcp_bytes) != wireshark_tcp_hex {
+		t.Errorf(Red("TCP encoding with payload failed"))
+		tcp_hex := hex.EncodeToString(tcp_bytes)
+		printExpGot(wireshark_tcp_hex, tcp_hex)
+	}
+}
+
 // Test convert headers to bytes and back to headers ************************************
 
 func Test_ConvertIP01(t *testing.T) {
@@ -324,6 +437,17 @@ func Test_ConvertTCP02(t *testing.T) {
 	}
 }
 
+func Test_ConvertTCPWithPayload(t *testing.T) {
+	ip := getIPHeaderWithPayload(t)
+	tcp := getTCPHeaderWithPayload(t)
+	tcp_bytes := tcp.ToBytes(ip)
+	tcp2 := BytesToTCP(tcp_bytes)
+	if compareTCPHeaders(tcp, tcp2) == false {
+		t.Errorf(Red("TCP header conversion with payload failed"))
+		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
+	}
+}
+
 // Test wrapping headers into bytes *****************************************************
 
 func Test_Wrap01(t *testing.T) {
@@ -332,7 +456,8 @@ func Test_Wrap01(t *testing.T) {
 	payload := []byte{}
 	packet := WrapPacket(ip, tcp, payload)
 	packet_hex := hex.EncodeToString(packet)
-	wireshark_hex := "45000040000040004006d3760a6ed06acc2cc03c" + "c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
+	wireshark_hex := "45000040000040004006d3760a6ed06acc2cc03c" +
+		"c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
 	if packet_hex != wireshark_hex {
 		t.Errorf(Red("1st handshake Wrap packet failed"))
 		printExpGot(wireshark_hex, packet_hex)
@@ -346,9 +471,26 @@ func Test_Wrap02(t *testing.T) {
 	payload := []byte{}
 	packet := WrapPacket(ip, tcp, payload)
 	packet_hex := hex.EncodeToString(packet)
-	wireshark_hex := "4500003c000040002a06e97acc2cc03c0a6ed06a" + "0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
+	wireshark_hex := "4500003c000040002a06e97acc2cc03c0a6ed06a" +
+		"0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
 	if packet_hex != wireshark_hex {
 		t.Errorf(Red("2nd handshake Wrap packet failed"))
+		printExpGot(wireshark_hex, packet_hex)
+		printHexIdx(packet_hex)
+	}
+}
+
+func Test_Wrap03(t *testing.T) {
+	ip := getIPHeaderWithPayload(t)
+	tcp := getTCPHeaderWithPayload(t)
+	payload, _ := hex.DecodeString(giant_payload)
+	packet := WrapPacket(ip, tcp, payload)
+	packet_hex := hex.EncodeToString(packet)
+	wireshark_hex := "45000592464440002a069de0cc2cc03c0a6ed06a" +
+		"0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" +
+		giant_payload
+	if packet_hex != wireshark_hex {
+		t.Errorf(Red("Wrap packet with payload failed"))
 		printExpGot(wireshark_hex, packet_hex)
 		printHexIdx(packet_hex)
 	}
@@ -357,7 +499,8 @@ func Test_Wrap02(t *testing.T) {
 // Test unwrapping bytes into headers ***************************************************
 
 func Test_Unwrap01(t *testing.T) {
-	wireshark_hex := "45000040000040004006d3760a6ed06acc2cc03c" + "c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
+	wireshark_hex := "45000040000040004006d3760a6ed06acc2cc03c" +
+		"c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
 	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
 	ip, tcp, payload := UnwrapPacket(wireshark_bytes)
 	if compareIPHeaders(ip, getIPHeaderFirstHandshake(t)) == false {
@@ -375,7 +518,8 @@ func Test_Unwrap01(t *testing.T) {
 }
 
 func Test_Unwrap02(t *testing.T) {
-	wireshark_hex := "4500003c000040002a06e97acc2cc03c0a6ed06a" + "0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
+	wireshark_hex := "4500003c000040002a06e97acc2cc03c0a6ed06a" +
+		"0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
 	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
 	ip, tcp, payload := UnwrapPacket(wireshark_bytes)
 	if compareIPHeaders(ip, getIPHeaderSecondHandshake(t)) == false {

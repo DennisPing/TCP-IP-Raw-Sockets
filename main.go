@@ -35,7 +35,7 @@ func main() {
 
 	end_time := time.Now().Add(time.Second * 10)
 	for time.Now().Before(end_time) {
-		buffer := make([]byte, 4096)
+		buffer := make([]byte, 16384) // 16 kB
 		n, addr, err := syscall.Recvfrom(socketReceiver, buffer, 0)
 		if err != nil {
 			panic(err)
@@ -66,5 +66,4 @@ func main() {
 	}
 
 	syscall.Close(socketReceiver)
-
 }

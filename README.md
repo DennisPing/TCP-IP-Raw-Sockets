@@ -7,9 +7,9 @@ Dennis Ping
 
 This project was originally done in Python and ported to Go for self-learning purposes.
 
-Due to the low-level details, arithmetic math, and bitwise operations of this project, unit-testing was done to ensure correctness. All TCP and IP Header functions were tested to +90% coverage.
+Due to the low-level details, arithmetic math, and bitwise operations of this project, unit-testing was done to ensure correctness. All TCP and IP Header functions were tested to +90% coverage. So much pain and suffering.
 
-Unit-testing the raw sockets, 3-way handshake, and GET function is impossible since the starting sequence number is always randomized between 0 and 2^32. Therefore, manual testing was done on Wireshark.
+Unit-testing the raw sockets, 3-way handshake, and GET function is impossible since the starting sequence number is randomized between 0 and 2^32. Therefore, manual testing was done on Wireshark.
 
 This project only works on Linux.
 
