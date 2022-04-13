@@ -50,9 +50,9 @@ go test -v
 ## Design Details
 
 - All the details about wrapping and unwrapping of packets have been abstracted into 2 functions:
-  1. Unwrap(packet) -> (ipHeader, tcpHeader, payload)
-  2. Wrap(ipHeader, tcpHeader, payload) -> packet
-- The TCP and IP checksums have been automated such that they will return an error to the client program if the checksum is invalid.
+  1. Wrap(IPHeader, TCPHeader) -> packet
+  2. Unwrap(packet) -> IPHeader, TCPHeader, error
+- As shown in the above function signature, when a packet is unwrapped, the TCP and IP checksums are **automatically validated**. If there is an error, it will return the error to the client program.
 - All the details about HTTP headers and its payload have been abstracted away into a custom library similar to Python's `requests` library.
 - The main client program manages the seq numbers, ack numbers, congestion window, advertised window, timeout, and retransmit.
 - If a packet arrives out-of-order, we simply drop the packet and send out an ACK for the sequence number we want.

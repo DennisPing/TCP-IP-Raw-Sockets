@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -498,7 +499,7 @@ func Test_Unwrap01(t *testing.T) {
 	wireshark_hex := "45000040000040004006d3760a6ed06acc2cc03c" +
 		"c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
 	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
-	ip, tcp := Unwrap(wireshark_bytes)
+	ip, tcp, _ := Unwrap(wireshark_bytes)
 	if compareIPHeaders(ip, getIPHeaderFirstHandshake(t)) == false {
 		t.Errorf(Red("1st handshake IP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderFirstHandshake(t), ip)
@@ -517,7 +518,7 @@ func Test_Unwrap02(t *testing.T) {
 	wireshark_hex := "4500003c000040002a06e97acc2cc03c0a6ed06a" +
 		"0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
 	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
-	ip, tcp := Unwrap(wireshark_bytes)
+	ip, tcp, _ := Unwrap(wireshark_bytes)
 	if compareIPHeaders(ip, getIPHeaderSecondHandshake(t)) == false {
 		t.Errorf(Red("2nd handshake IP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderSecondHandshake(t), ip)
@@ -536,7 +537,7 @@ func Test_UnwrapWithPayload(t *testing.T) {
 	wireshark_hex := "45000592464440002a069de0cc2cc03c0a6ed06a" +
 		"0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + giant_payload
 	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
-	ip, tcp := Unwrap(wireshark_bytes)
+	ip, tcp, _ := Unwrap(wireshark_bytes)
 	if compareIPHeaders(ip, getIPHeaderWithPayload(t)) == false {
 		t.Errorf(Red("IP header unwrap with payload failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderWithPayload(t), ip)
@@ -549,6 +550,48 @@ func Test_UnwrapWithPayload(t *testing.T) {
 	if !bytes.Equal(payload_bytes, tcp.payload) {
 		t.Errorf(Red("Payload unwrap with payload failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", []byte(giant_payload), tcp.payload)
+	}
+}
+
+// Test unwrapping a corrupted packet and checking for errors ***************************
+
+func Test_UnwrapCorruptedIP(t *testing.T) {
+	wireshark_hex := "45000592464940002a069de0cc2cc03c0a6ed06a" +
+		"0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + giant_payload
+	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
+	_, _, err := Unwrap(wireshark_bytes)
+	if err == nil {
+		t.Errorf(Red("Unwrap corrupted IP header failed. Expected an error"))
+	}
+	if err.Error() != "IP checksum failed" {
+		t.Errorf(Red("Unwrap corrupted IP header failed. Wrong error message"))
+	}
+}
+
+func Test_UnwrapCorruptedTCP(t *testing.T) {
+	wireshark_hex := "45000592464440002a069de0cc2cc03c0a6ed06a" +
+		"0050c6b762a01b47a4269e87801000eb71aa00000101080abeb95f0abb687a45" + giant_payload
+	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
+	_, _, err := Unwrap(wireshark_bytes)
+	if err == nil {
+		t.Errorf(Red("Unwrap corrupted TCP header failed. Expected an error"))
+	}
+	if err.Error() != "TCP checksum failed" {
+		t.Errorf(Red("Unwrap corrupted TCP header failed. Wrong error message"))
+	}
+}
+
+func Test_UnwrapCorruptedPayload(t *testing.T) {
+	corrupt_payload := strings.Replace(giant_payload, "ca", "cb", 1) // Replace 1 character
+	wireshark_hex := "45000592464440002a069de0cc2cc03c0a6ed06a" +
+		"0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + corrupt_payload
+	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
+	_, _, err := Unwrap(wireshark_bytes)
+	if err == nil {
+		t.Errorf(Red("Unwrap corrupted payload failed. Expected an error"))
+	}
+	if err.Error() != "TCP checksum failed" {
+		t.Errorf(Red("Unwrap corrupted payload failed. Wrong error message"))
 	}
 }
 
