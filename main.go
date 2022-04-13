@@ -51,7 +51,7 @@ func main() {
 		host := addr.Addr[0:4]
 		host_str := fmt.Sprintf("%d.%d.%d.%d", host[0], host[1], host[2], host[3])
 		if host_str == "204.44.192.60" {
-			ip, _, _ := UnwrapPacket(packet)
+			ip, _ := Unwrap(packet)
 			fmt.Printf("%+v\n\n", ip)
 			// fmt.Printf("%d, %d\n", IPChecksum(ip.ToBytes()), TCPChecksum(tcp.ToBytes(), ip.src_addr, ip.dst_addr))
 		}

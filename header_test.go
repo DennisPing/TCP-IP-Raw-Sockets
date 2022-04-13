@@ -453,8 +453,7 @@ func Test_ConvertTCPWithPayload(t *testing.T) {
 func Test_Wrap01(t *testing.T) {
 	ip := getIPHeaderFirstHandshake(t)
 	tcp := getTCPHeaderFirstHandshake(t)
-	payload := []byte{}
-	packet := WrapPacket(ip, tcp, payload)
+	packet := Wrap(ip, tcp)
 	packet_hex := hex.EncodeToString(packet)
 	wireshark_hex := "45000040000040004006d3760a6ed06acc2cc03c" +
 		"c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
@@ -468,8 +467,7 @@ func Test_Wrap01(t *testing.T) {
 func Test_Wrap02(t *testing.T) {
 	ip := getIPHeaderSecondHandshake(t)
 	tcp := getTCPHeaderSecondHandshake(t)
-	payload := []byte{}
-	packet := WrapPacket(ip, tcp, payload)
+	packet := Wrap(ip, tcp)
 	packet_hex := hex.EncodeToString(packet)
 	wireshark_hex := "4500003c000040002a06e97acc2cc03c0a6ed06a" +
 		"0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
@@ -483,12 +481,10 @@ func Test_Wrap02(t *testing.T) {
 func Test_Wrap03(t *testing.T) {
 	ip := getIPHeaderWithPayload(t)
 	tcp := getTCPHeaderWithPayload(t)
-	payload, _ := hex.DecodeString(giant_payload)
-	packet := WrapPacket(ip, tcp, payload)
+	packet := Wrap(ip, tcp)
 	packet_hex := hex.EncodeToString(packet)
 	wireshark_hex := "45000592464440002a069de0cc2cc03c0a6ed06a" +
-		"0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" +
-		giant_payload
+		"0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + giant_payload
 	if packet_hex != wireshark_hex {
 		t.Errorf(Red("Wrap packet with payload failed"))
 		printExpGot(wireshark_hex, packet_hex)
@@ -502,7 +498,7 @@ func Test_Unwrap01(t *testing.T) {
 	wireshark_hex := "45000040000040004006d3760a6ed06acc2cc03c" +
 		"c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
 	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
-	ip, tcp, payload := UnwrapPacket(wireshark_bytes)
+	ip, tcp := Unwrap(wireshark_bytes)
 	if compareIPHeaders(ip, getIPHeaderFirstHandshake(t)) == false {
 		t.Errorf(Red("1st handshake IP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderFirstHandshake(t), ip)
@@ -511,9 +507,9 @@ func Test_Unwrap01(t *testing.T) {
 		t.Errorf(Red("1st handshake TCP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getTCPHeaderFirstHandshake(t), tcp)
 	}
-	if !bytes.Equal([]byte{}, payload) {
+	if !bytes.Equal([]byte{}, tcp.payload) {
 		t.Errorf(Red("1st handshake Payload unwrap failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", []byte{}, payload)
+		fmt.Printf("Exp: %v\nGot: %v\n", []byte{}, tcp.payload)
 	}
 }
 
@@ -521,7 +517,7 @@ func Test_Unwrap02(t *testing.T) {
 	wireshark_hex := "4500003c000040002a06e97acc2cc03c0a6ed06a" +
 		"0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
 	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
-	ip, tcp, payload := UnwrapPacket(wireshark_bytes)
+	ip, tcp := Unwrap(wireshark_bytes)
 	if compareIPHeaders(ip, getIPHeaderSecondHandshake(t)) == false {
 		t.Errorf(Red("2nd handshake IP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderSecondHandshake(t), ip)
@@ -530,9 +526,29 @@ func Test_Unwrap02(t *testing.T) {
 		t.Errorf(Red("2nd handshake TCP header unwrap failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", getTCPHeaderSecondHandshake(t), tcp)
 	}
-	if !bytes.Equal([]byte{}, payload) {
+	if !bytes.Equal([]byte{}, tcp.payload) {
 		t.Errorf(Red("2nd handshake Payload unwrap failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", []byte{}, payload)
+		fmt.Printf("Exp: %v\nGot: %v\n", []byte{}, tcp.payload)
+	}
+}
+
+func Test_UnwrapWithPayload(t *testing.T) {
+	wireshark_hex := "45000592464440002a069de0cc2cc03c0a6ed06a" +
+		"0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + giant_payload
+	wireshark_bytes, _ := hex.DecodeString(wireshark_hex)
+	ip, tcp := Unwrap(wireshark_bytes)
+	if compareIPHeaders(ip, getIPHeaderWithPayload(t)) == false {
+		t.Errorf(Red("IP header unwrap with payload failed"))
+		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderWithPayload(t), ip)
+	}
+	if compareTCPHeaders(tcp, getTCPHeaderWithPayload(t)) == false {
+		t.Errorf(Red("TCP header unwrap with payload failed"))
+		fmt.Printf("Exp: %v\nGot: %v\n", getTCPHeaderWithPayload(t), tcp)
+	}
+	payload_bytes, _ := hex.DecodeString(giant_payload)
+	if !bytes.Equal(payload_bytes, tcp.payload) {
+		t.Errorf(Red("Payload unwrap with payload failed"))
+		fmt.Printf("Exp: %v\nGot: %v\n", []byte(giant_payload), tcp.payload)
 	}
 }
 

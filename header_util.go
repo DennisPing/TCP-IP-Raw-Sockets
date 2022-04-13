@@ -1,23 +1,18 @@
 package main
 
-// Unwrap a packet and return (1) IP Header (2) TCP Header (3) Payload in bytes
-func UnwrapPacket(packet []byte) (*IPHeader, *TCPHeader, []byte) {
+// Unwrap a packet and return (1) IP Header (2) TCP Header.
+// The Payload is stored inside the TCP Header, if any.
+func Unwrap(packet []byte) (*IPHeader, *TCPHeader) {
 	ip := BytesToIP(packet[:20])
-	tcp_size := ip.tot_len - uint16(ip.ihl*4)
-	tcp := BytesToTCP(packet[20 : 20+tcp_size])
-
-	payload := make([]byte, 0)
-	if ip.tot_len-20-tcp_size > 0 {
-		payload = packet[20+tcp_size:]
-	}
-	return ip, tcp, payload
+	tcp := BytesToTCP(packet[20:])
+	return ip, tcp
 }
 
-// Wrap (1) IP Header (2) TCP Header (3) Payload in bytes
-func WrapPacket(ip *IPHeader, tcp *TCPHeader, payload []byte) []byte {
+// Wrap (1) IP Header (2) TCP Header.
+// The Payload should be stored inside the TCP Header, if any.
+func Wrap(ip *IPHeader, tcp *TCPHeader) []byte {
 	ip_bytes := ip.ToBytes()
 	tcp_bytes := tcp.ToBytes(ip)
 	packet := append(ip_bytes, tcp_bytes...)
-	packet = append(packet, payload...)
 	return packet
 }
