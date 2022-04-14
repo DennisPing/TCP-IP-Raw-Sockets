@@ -479,7 +479,7 @@ func Test_Wrap02(t *testing.T) {
 	}
 }
 
-func Test_Wrap03(t *testing.T) {
+func Test_WrapWithPayload(t *testing.T) {
 	ip := getIPHeaderWithPayload(t)
 	tcp := getTCPHeaderWithPayload(t)
 	packet := Wrap(ip, tcp)
@@ -597,7 +597,7 @@ func Test_UnwrapCorruptedPayload(t *testing.T) {
 
 // Test odd TCP segment length **********************************************************
 
-func Test_OddTCPSegmentLength(t *testing.T) { // Holy fuck this was difficult.
+func Test_OddTCPSegmentLength(t *testing.T) { // Holy fuck this was difficult
 	var combo uint8 = (4 << 4) | 5
 	ip := IPHeader{
 		version:     combo >> 4,
@@ -764,6 +764,6 @@ func compareTCPHeaders(tcp1 *TCPHeader, tcp2 *TCPHeader) bool {
 
 // Developer message ********************************************************************
 
-func Test_DeveloperMessage(t *testing.T) {
-	fmt.Println(Blue("Dev note: TCPFlags and IPFlags use unordered map, so a manual compare function was created."))
-}
+// func Test_DeveloperMessage(t *testing.T) {
+// 	fmt.Println(Blue("Dev note: TCPFlags and IPFlags use unordered map, so a manual compare function was created."))
+// }

@@ -11,12 +11,12 @@ import (
 type IPHeader struct {
 	version     uint8 // Always 4
 	ihl         uint8 // Always 5 since we have no options
-	tos         uint8 // Usually 0, but can be used to set DSCP (6 bits) + ECN (2 bits)
+	tos         uint8 // Always 0 when we send out, can be 8 when receiving from server
 	tot_len     uint16
 	id          uint16
-	flags       []string // uint8
-	frag_offset uint16   // 13 bits
-	ttl         uint8    // Usually 64
+	flags       []string // 3 bits, part of uint16
+	frag_offset uint16   // 13 bits, part of uint16
+	ttl         uint8    // Always 64 when we send out
 	protocol    uint8    // Always 6 for TCP
 	checksum    uint16
 	src_addr    net.IP
@@ -86,7 +86,7 @@ func BytesToIP(packet []byte) *IPHeader {
 	binary.Read(reader, binary.BigEndian, &ip.tos)
 	binary.Read(reader, binary.BigEndian, &ip.tot_len)
 	binary.Read(reader, binary.BigEndian, &ip.id)
-	// Read the 3 bit flags + 13 bit fragment offset as one uint16 (2 bytes)
+	// Read the 3 bit flags + 13 bit fragment offset as one uint16
 	var combo2 uint16
 	binary.Read(reader, binary.BigEndian, &combo2)
 	bitflags := uint8(combo2 >> 8)
@@ -107,7 +107,7 @@ func BytesToIP(packet []byte) *IPHeader {
 // Explanation: https://gist.github.com/david-hoze/0c7021434796997a4ca42d7731a7073a
 func IPChecksum(b []byte) uint16 {
 	var sum uint32
-	for i := 0; i+1 < len(b); i += 2 {
+	for i := 0; i < len(b)-1; i += 2 {
 		sum += uint32(b[i])<<8 | uint32(b[i+1])
 	}
 	sum = (sum >> 16) + (sum & 0xffff)

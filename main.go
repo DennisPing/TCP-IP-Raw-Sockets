@@ -45,24 +45,24 @@ func main() {
 	}
 
 	// While the queue is not empty, get the next packet and print n bytes
+	i := 0
 	for !queue.IsEmpty() {
 		packet := queue.Dequeue().([]byte)
 		addr := addresses.Dequeue().(*syscall.SockaddrInet4)
 		host := addr.Addr[0:4]
 		host_str := fmt.Sprintf("%d.%d.%d.%d", host[0], host[1], host[2], host[3])
 		if host_str == "204.44.192.60" {
-			ip, _, _ := Unwrap(packet)
-			fmt.Printf("%+v\n\n", ip)
-			// fmt.Printf("%d, %d\n", IPChecksum(ip.ToBytes()), TCPChecksum(tcp.ToBytes(), ip.src_addr, ip.dst_addr))
+			_, tcp, err := Unwrap(packet)
+			if err != nil {
+				fmt.Printf("Bad packet from port: %d ****************************\n", tcp.src_port)
+			} else {
+				if tcp.src_port == 80 {
+					// fmt.Printf("Good packet %d\n", i)
+					continue
+				}
+			}
 		}
-
-		// host_str := fmt.Sprintf("%d.%d.%d.%d", host[0], host[1], host[2], host[3])
-		// port := addr.Port
-		// fmt.Printf("Received %d bytes from %s:%d\n", len(packet), host_str, port)
-		// ipBytes := packet[0:20]
-		// ip := BytesToIP(ipBytes)
-		// ihl := strconv.FormatUint(uint64(ip.ihl), 10)
-		// fmt.Println("IHL: ", ihl)
+		i++
 	}
 
 	syscall.Close(socketReceiver)

@@ -61,7 +61,6 @@ func (tcp *TCPHeader) ToBytes(ip *IPHeader) []byte {
 	binary.Write(buf, binary.BigEndian, tcp.dst_port)
 	binary.Write(buf, binary.BigEndian, tcp.seq_num)
 	binary.Write(buf, binary.BigEndian, tcp.ack_num)
-	// var combo uint16
 	var combo uint16
 	combo = uint16(tcp.data_offset) << 12
 	combo |= uint16(tcp.reserved) << 9
@@ -127,7 +126,7 @@ func TCPChecksum(b []byte, ip *IPHeader) uint16 {
 	// This shit is too hard
 	// https://stackoverflow.com/questions/62329005/how-to-calculate-tcp-packet-checksum-correctly
 	var sum uint32
-	for i := 0; i+1 < len(data); i += 2 {
+	for i := 0; i < len(data)-1; i += 2 {
 		sum += uint32(data[i])<<8 | uint32(data[i+1])
 	}
 	if len(data)%2 != 0 { // If data has odd length, make sure to add the last byte
