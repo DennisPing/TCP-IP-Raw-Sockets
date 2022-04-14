@@ -61,9 +61,6 @@ func (ip *IPHeader) ToBytes() []byte {
 	// [3 flag bits] + [13 fragment offset bits] = 16 bits
 	var combo2 uint16
 	flags := bitshiftIPFlags(ip.flags)
-	// uint8 flags looks like [RF, DF, MF, 4, 3, 2, 1, 0]
-	// uint16 frag_offset looks like [15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
-	// Combine them to look like [RF, DF, MF, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
 	combo2 = uint16(flags>>5)<<13 | ip.frag_offset
 	binary.Write(buf, binary.BigEndian, combo2)
 	binary.Write(buf, binary.BigEndian, ip.ttl)
