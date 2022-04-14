@@ -595,6 +595,57 @@ func Test_UnwrapCorruptedPayload(t *testing.T) {
 	}
 }
 
+// Test odd TCP segment length **********************************************************
+
+func Test_OddTCPSegmentLength(t *testing.T) { // Holy fuck this was difficult.
+	var combo uint8 = (4 << 4) | 5
+	ip := IPHeader{
+		version:     combo >> 4,
+		ihl:         combo & 0xf,
+		tos:         uint8(0x20),
+		tot_len:     uint16(845),
+		id:          uint16(21169),
+		flags:       []string{"DF"},
+		frag_offset: uint16(0),
+		ttl:         uint8(38),
+		protocol:    uint8(6),
+		checksum:    uint16(45243),
+		src_addr:    net.IPv4(204, 44, 192, 60).To4(),
+		dst_addr:    net.IPv4(192, 168, 1, 13).To4(),
+	}
+
+	options, _ := hex.DecodeString("0101080afdc076540198f657")
+	payload, _ := hex.DecodeString("86def98ab4aa04480dfc00ed6d9326edd05f480b5bc3501311c68af6f37b8e13a03b6d1c904a8aedc4cef37320bc23897ca909b8ef3bed95e91b02012b1f047e649c1785d91cc8936730a46df6de15f1bf863424df17ae0f280f7440526fdd7afcf788848f98e491f10946a02ee8e73e32a7e5a4fc74b79dc20012b3c7c82d6f87626c673b1e5e48618c53481de8b226e9c81ed1cf08401f969ea8863a152e0acfea9284b6bd2ea7aaacf57814d5464a2abe50d120847b21e571f51f6a7c6d448b4504a668beedf0ef6316ebd59d98332aaea0b06a1b79434462e24be40c8bba0c586180446fca61722c72026374fde5b0bd0e837558aeabd5f87b474f8b08ee2749b4020faa5ab705b3e65bb99bd51fe5d022256d99b365eb565f257c149888208e650bb189ce13d92e17df7ef0c80bbb2c3664f9725588b214cffaee21abee8d254a017e08803167dd61b636a3be346e164382d2b3a9a7342fcc2d4bfd17d680a8fd50c4dbd3bd48e71f1211f9892b5139620456714c90597c34851b8c3d413f68c30f1d57d7d3200c45ff4a838940020cf0c12960825b7cd19818ddb3e17b2803d281660ffc77cfa5c50d33df0a299cdbde7bdac349289598a67ba77d06dd9b4530254dc4005f24f9548d3fa02c528d09753e64c29cde60554d22181a6064441bdd8257c935152a215767b8a7510cba0c68d060a261d6ac8f174abbb87d4cf8d88b2af05cd2bfe1f5164d53549919815587aec4ef46a0faa2e7b4ba53ed8c0a2c50e8637571a484222be96c5d75d06cff3df1de4749d2b180299bd0749757f68d7d6d3a8a985d81fac623e83c8e0c88d825c644521fa5981e243ee82c96e240a9a3af38e2668ea2c52e5bf08c8e71a599f6b75c36dabb35b185adb68d3c0537dc435496200a194679862b6eb047c81eec4faba6825225f589e6aeed898aaf4909372ac3caffdc40856723416bb6a94b28df3d448cc52e13a8478fb9b6ebf8b1447e423fd6b72980d2df84b08b7b5848f59ad0c53a7d1bee1c86713e6431ef617d32770921fd330323237009a2ec9a9702560c54a1073105d8cc823240e51a949951920becee7201004a85278a6f5800000d0a300d0a0d0a")
+
+	tcp := TCPHeader{
+		src_port:    uint16(80),
+		dst_port:    uint16(47652),
+		seq_num:     uint32(3280096596),
+		ack_num:     uint32(1563085193),
+		data_offset: uint8(8),
+		reserved:    uint8(0),
+		flags:       []string{"ACK", "PSH"},
+		window:      uint16(235),
+		checksum:    uint16(47864),
+		urgent:      uint16(0),
+		options:     options,
+		payload:     payload,
+	}
+	packet := Wrap(&ip, &tcp)
+	ip_header, tcp_header, err := Unwrap(packet)
+	if err != nil {
+		t.Errorf(Red("Expected to get an error, but did not: %s"), err)
+	}
+	if ip.checksum != ip_header.checksum {
+		t.Errorf(Red("IP checksum failed"))
+		fmt.Printf("Exp: %d, Got: %d\n", ip.checksum, ip_header.checksum)
+	}
+	if tcp.checksum != tcp_header.checksum {
+		t.Errorf(Red("TCP checksum failed"))
+		fmt.Printf("Exp: %d, Got: %d\n", tcp.checksum, tcp_header.checksum)
+	}
+}
+
 // Random helper functions **************************************************************
 
 func contains(slice []string, str string) bool {
