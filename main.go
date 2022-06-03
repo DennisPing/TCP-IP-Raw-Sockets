@@ -1,69 +1,73 @@
 package main
 
 import (
+	"flag"
 	"fmt"
-	"syscall"
-	"time"
+	"net/url"
+	"os"
+
+	"github.com/DennisPing/TCP-IP-Raw-Sockets/requests"
 )
 
+func cliUsage() {
+	fmt.Printf("Usage: sudo %s [-v] URL\n", os.Args[0])
+	fmt.Printf("Options:\n")
+	flag.PrintDefaults()
+}
+
 func main() {
+	var (
+		input_url string
+		verbose   bool
+	)
 
-	// ipHex := "450000340b63400040066df0c0a8010b226bdd52"
-	// tcpHex := "d56a0050318b9afdecef2bbb801001f5c19700000101080af31fa208e7c9e12e"
-	// combo := ipHex + tcpHex
-	// comboBytes, _ := hex.DecodeString(combo)
+	flag.Usage = cliUsage
+	flag.BoolVar(&verbose, "v", false, "verbose output")
+	flag.Parse()
 
-	// addr := syscall.SockaddrInet4{
-	// 	Port: 80,
-	// 	Addr: [4]byte{204, 44, 192, 60},
-	// }
-	// socketSender := InitSocketSender(&addr)
-	socketReceiver := InitSocketReceiver()
-
-	// syscall.SetsockoptInt(socketSender, syscall.IPPROTO_IP, syscall.IP_HDRINCL, 1)
-	// err := syscall.Sendto(socketSender, comboBytes, 0, &addr)
-	// if err != nil {
-	// 	fmt.Printf("Error sending packet: %s", err)
-	// 	return
-	// }
-	// addr_str := fmt.Sprintf("%d.%d.%d", addr.Addr[0], addr.Addr[1], addr.Addr[2])
-	// fmt.Printf("Sent packet to %s:%d\n", addr_str, addr.Port)
-	// syscall.Close(socketSender)
-
-	queue := Queue{}
-	addresses := Queue{}
-
-	end_time := time.Now().Add(time.Second * 10)
-	for time.Now().Before(end_time) {
-		buffer := make([]byte, 16384) // 16 kB
-		n, addr, err := syscall.Recvfrom(socketReceiver, buffer, 0)
-		if err != nil {
-			panic(err)
-		}
-		queue.Enqueue(buffer[:n])
-		addresses.Enqueue(addr)
+	if flag.NArg() == 1 {
+		input_url = flag.Arg(0)
+	} else if flag.NArg() < 1 {
+		fmt.Println("Error: missing URL")
+		cliUsage()
+		os.Exit(1)
+	} else {
+		fmt.Println("Error: too many arguments")
+		cliUsage()
+		os.Exit(1)
+	}
+	if verbose {
+		fmt.Println("verbose output")
 	}
 
-	// While the queue is not empty, get the next packet and print n bytes
-	i := 0
-	for !queue.IsEmpty() {
-		packet := queue.Dequeue().([]byte)
-		addr := addresses.Dequeue().(*syscall.SockaddrInet4)
-		host := addr.Addr[0:4]
-		host_str := fmt.Sprintf("%d.%d.%d.%d", host[0], host[1], host[2], host[3])
-		if host_str == "204.44.192.60" {
-			_, tcp, err := Unwrap(packet)
-			if err != nil {
-				fmt.Printf("Bad packet from port: %d ****************************\n", tcp.src_port)
-			} else {
-				if tcp.src_port == 80 {
-					// fmt.Printf("Good packet %d\n", i)
-					continue
-				}
-			}
-		}
-		i++
+	u, err := url.Parse(input_url)
+	if err != nil {
+		fmt.Printf("Invalid URL: %s\n", err)
+		os.Exit(1)
 	}
 
-	syscall.Close(socketReceiver)
+	res, err := requests.Get(*u, verbose)
+	if err != nil {
+		fmt.Printf("GET request error: %s\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("Received all data")
+
+	fmt.Println(res.StatusCode)
+	fmt.Println(res.Reason)
+	fmt.Println(res.Headers)
+
+	// Write content to file with both read write permissions
+	f, err := os.Create("output.log")
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer f.Close()
+	_, err = f.Write(res.Body)
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	fmt.Println("Done")
 }
