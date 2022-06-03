@@ -31,22 +31,31 @@ go build -o rawhttpget
 
 ## Required System Changes
 
+1. Modify iptables rule
 ```
 sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 ```
 
-Find your "network interface" name using: `ifconfig -a`
-
+2. Find your "network interface" name using: `ifconfig -a`
 ```
 sudo ethtool -K <network interface> gro off
 sudo ethtool -K <network interface> tx off rx off
 ```
 
+Don't worry, these changes are automatically reverted after OS reboot.
+
 ## How to Run
 
 cd into the `/bin` directory
 ```
-sudo ./rawhttpget
+sudo ./rawhttpget [URL]
+```
+
+Examples
+
+```
+sudo ./rawhttpget http://github.com/DennisPing/CS5700-Project4
+sudo ./rawhttpget http://david.choffnes.com/classes/cs4700sp22/10MB.log
 ```
 
 ## How to Run Tests
@@ -86,3 +95,9 @@ go test -v
 1. For loop through the length of this map.
 2. Find the lowest sequence number. This is the first piece.
 3. Use the pointer in the tuple to find the next piece. Append the pieces.
+
+## Important Lessons
+
+* "Chunked encoding is a required feature of HTTP/1.1. If you do not require any other 1.1-specific features, specify HTTP/1.0 in your request instead" ([StackOverflow post](https://stackoverflow.com/questions/31969990/how-to-tell-the-http-server-to-not-send-chunked-encoding)). Because I am using HTTP/1.1, I had to decode the chunked encoded payloads before writing them to the output file.
+
+* "Transfer-Encoding: chunked" does not have a "Content-Length", and therefore, it sends a 0 length chunk (`0\r\n\r\n`) on the last payload . That is how the client knows it has received the last packet of the GET response.
