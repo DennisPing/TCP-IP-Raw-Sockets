@@ -3,31 +3,21 @@
 Matthew Jones  
 Dennis Ping  
 
-## Background
+## Overview
 
-This project was originally done in Python and ported to Go for self-learning purposes.
+This project was originally done in Python3 and ported to Go for self-learning purposes.
 
-Due to the low-level details, arithmetic math, and bitwise operations of this project, unit-testing was done to ensure correctness. All TCP and IP Header functions were tested to +90% coverage. So much pain and suffering.
+Due to the low-level details and bitwise operations of this project, unit testing was done to ensure correctness. All TCP and IP Header functions were tested to +90% coverage.
 
-Unit-testing the raw sockets, 3-way handshake, and GET function is impossible since the starting sequence number is randomized between 0 and 2^32. Therefore, manual testing was done on Wireshark.
+Testing of the GET request was done by downloading the sample HTTP pages and verifying using `diff [file1] [file2]`.
 
-This project only works on Linux.
+Debugging of the 3-way handshake and teardown was done on Wireshark.
 
 ## Requirements
 
 Go 1.15+
 
-## How to Build
-
-```
-make
-```
-
-or
-
-```
-go build -o rawhttpget
-```
+This project only works on Linux.
 
 ## Required System Changes
 
@@ -44,17 +34,24 @@ sudo ethtool -K <network interface> tx off rx off
 
 Don't worry, these changes are automatically reverted after OS reboot.
 
+## How to Build
+
+```
+make
+```
+
 ## How to Run
 
-cd into the `/bin` directory
 ```
-sudo ./rawhttpget [URL]
+sudo ./rawhttpget [-v] URL
 ```
+
+The optional flag `-v` is for verbose output.
 
 Examples
 
 ```
-sudo ./rawhttpget http://github.com/DennisPing/CS5700-Project4
+sudo ./rawhttpget -v http://david.choffnes.com/classes/cs4700sp22/project4.php
 sudo ./rawhttpget http://david.choffnes.com/classes/cs4700sp22/10MB.log
 ```
 
@@ -72,11 +69,11 @@ go test -v
 ## Design Details
 
 - All the details about wrapping and unwrapping of packets have been abstracted into 2 functions:
-  1. Wrap(IPHeader, TCPHeader) -> packet
-  2. Unwrap(packet) -> IPHeader, TCPHeader, error
-- As shown in the above function signature, when a packet is unwrapped, the TCP and IP checksums are **automatically checked**. If there is an error, it will return the error back to the client to handle.
-- All the details about HTTP headers and its payload have been abstracted away into a custom library similar to Python's `requests` library.
-- The main client program manages the seq numbers, ack numbers, congestion window, advertised window, timeout, and retransmit.
+  1. `Wrap(IPHeader, TCPHeader) -> packet`
+  2. `Unwrap(packet) -> IPHeader, TCPHeader, error`
+- When a packet is unwrapped, the TCP and IP checksums are **automatically checked**. If there is an error, it will return the error back to the client to handle. Likewise, when a packet is wrapped, its checksum is **automatically calculated** into the packet.
+- All the details about HTTP headers and payload have been abstracted away into the `requests` package.
+- The `requests` package manages the seq numbers, ack numbers, congestion window, advertised window, timeout, and retransmit.
 - If a packet we sent out has not been ACK'd within 1 minute, the packet is assumed to be lost, so we retransmit it.
 - The payloads of the TCP headers are stored in a map for reconstruction at the end. The design is a linked list within a hashmap.
 
