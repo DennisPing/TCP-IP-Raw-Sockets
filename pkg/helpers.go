@@ -61,13 +61,11 @@ func EqualAddr(myaddr syscall.Sockaddr, theiraddr syscall.Sockaddr) bool {
 	if !ok {
 		return false
 	}
-
 	if ipv4a.Port != ipv4b.Port {
 		return false
 	}
 	if !EqualBytes(ipv4a.Addr[:], ipv4b.Addr[:]) {
 		return false
 	}
-
 	return true
 }

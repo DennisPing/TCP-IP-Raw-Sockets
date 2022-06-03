@@ -16,16 +16,15 @@ type Response struct {
 }
 
 func NewResponse(url string, data *[]byte) *Response {
-	// https://stackoverflow.com/questions/60774467/split-a-string-only-by-the-first-element-in-golang
 	split := bytes.SplitN(*data, []byte("\r\n\r\n"), 2)
 	top := split[0]
 	body := split[1]
 
 	// Parse the first line (HTTP/1.0 200 OK)
 	status_line := bytes.SplitN(top, []byte("\r\n"), 2)[0]
-	parts := bytes.Split(status_line, []byte(" "))
-	status_code := parts[1][0]
-	reason := parts[2][0]
+	three_parts := bytes.Split(status_line, []byte(" "))
+	status_code := three_parts[1][0]
+	reason := three_parts[2][0]
 
 	// Parse the headers
 	headers := bytes.SplitN(top, []byte("\r\n"), 2)[1]
