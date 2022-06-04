@@ -4,7 +4,10 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"math/rand"
 	"net/url"
+	"strconv"
+	"time"
 )
 
 type Response struct {
@@ -23,8 +26,8 @@ func NewResponse(url string, data *[]byte) *Response {
 	// Parse the first line (HTTP/1.0 200 OK)
 	status_line := bytes.SplitN(top, []byte("\r\n"), 2)[0]
 	three_parts := bytes.Split(status_line, []byte(" "))
-	status_code := three_parts[1][0]
-	reason := three_parts[2][0]
+	status_code, _ := strconv.Atoi(string(three_parts[1]))
+	reason := three_parts[2]
 
 	// Parse the headers
 	headers := bytes.SplitN(top, []byte("\r\n"), 2)[1]
@@ -45,20 +48,20 @@ func NewResponse(url string, data *[]byte) *Response {
 	}
 }
 
-func Get(u url.URL, verbose bool) (*Response, error) {
+func Get(u *url.URL, verbose bool) (*Response, error) {
 	if u.Scheme != "http" {
 		return nil, errors.New("only HTTP is supported")
 	}
 	if u.Host != "david.choffnes.com" {
 		return nil, errors.New("only host david.choffnes.com is supported")
 	}
+	header := prepHeader(u, "GET")
 
-	fmt.Println(u.Path)
+	fmt.Println("PATH:", u.Path)
 
-	client := InitClient(u.Hostname())
+	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
+	client := NewClient(u.Hostname(), verbose)
 	client.Connect() // 3-way handshake
-
-	header := prepHeader("GET", u)
 	err := client.Send(header, []string{"ACK", "PSH"})
 	if err != nil {
 		return nil, err
@@ -75,9 +78,9 @@ func Get(u url.URL, verbose bool) (*Response, error) {
 	return res, nil
 }
 
-func prepHeader(method string, u url.URL) []byte {
+func prepHeader(u *url.URL, method string) []byte {
 	if method != "GET" {
-		panic("Only GET is supported")
+		panic("Only GET method is supported")
 	}
 	status_line := method + " " + u.Path + " HTTP/1.0\r\n"
 	header_map := map[string]string{
