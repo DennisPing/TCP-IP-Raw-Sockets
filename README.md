@@ -32,7 +32,12 @@ sudo ethtool -K <network interface> gro off
 sudo ethtool -K <network interface> tx off rx off
 ```
 
-Don't worry, these changes are automatically reverted after OS reboot.
+3. Example
+```
+sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
+sudo ethtool -K wlp4s0 gro off
+sudo ethtool -K wlp4s0 tx off rx off
+```
 
 ## How to Build
 
