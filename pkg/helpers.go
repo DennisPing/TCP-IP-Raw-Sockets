@@ -47,7 +47,6 @@ func LookupIP(hostname string) (net.IP, error) {
 	}
 	for _, ip := range ips {
 		if ipv4 := ip.To4(); ipv4 != nil {
-			fmt.Println("FOUND IT:", ipv4)
 			return ipv4, nil
 		}
 	}
