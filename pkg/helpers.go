@@ -40,7 +40,7 @@ func FindMyIP() net.IP {
 }
 
 // Return the Ipv4 address of a domain name
-func LookupIP(hostname string) (net.IP, error) {
+func LookupIPv4(hostname string) (net.IP, error) {
 	ips, err := net.LookupIP(hostname)
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve %s", hostname)
