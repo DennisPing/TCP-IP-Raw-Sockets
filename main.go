@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"path"
 
 	"github.com/DennisPing/TCP-IP-Raw-Sockets/requests"
 )
@@ -37,29 +38,24 @@ func main() {
 		cliUsage()
 		os.Exit(1)
 	}
-	if verbose {
-		fmt.Println("verbose output")
-	}
-	target_url, err := url.Parse(input_url)
+	u, err := url.Parse(input_url)
 	if err != nil {
 		fmt.Printf("Invalid URL: %s\n", err)
 		os.Exit(1)
 	}
 
 	// Make the GET request
-	res, err := requests.Get(target_url, verbose)
+	res, err := requests.Get(u, verbose)
 	if err != nil {
 		fmt.Printf("GET request error: %s\n", err)
 		os.Exit(1)
 	}
-	fmt.Println("Received all data")
 
-	fmt.Println(res.StatusCode)
-	fmt.Println(res.Reason)
-	fmt.Println(res.Headers)
+	fmt.Printf("%d %s\n", res.StatusCode, res.Reason)
 
 	// Write response body to file
-	f, err := os.Create("output.log")
+	var fname string = path.Base(u.Path)
+	f, err := os.Create(fname)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -70,5 +66,5 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	fmt.Println("Done")
+	fmt.Printf("Wrote %d bytes to %s\n", len(res.Body), fname)
 }
