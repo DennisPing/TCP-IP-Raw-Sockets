@@ -52,6 +52,10 @@ func main() {
 	}
 
 	fmt.Printf("%d %s\n", res.StatusCode, res.Reason)
+	if res.StatusCode != 200 {
+		fmt.Printf("Did not get \"200 OK\" response. Exiting...\n")
+		os.Exit(1)
+	}
 
 	// Write response body to file
 	var fname string = path.Base(u.Path)
