@@ -49,7 +49,7 @@ func NewClient(hostname string, verbose bool) *Client {
 	if verbose {
 		tw = tabwriter.NewWriter(os.Stdout, 24, 8, 1, '\t', 0)
 	}
-	server_ip, err := pkg.LookupIP(hostname) // Returns a 4 byte IPv4 address
+	server_ip, err := pkg.LookupIPv4(hostname) // Returns a 4 byte IPv4 address
 	if err != nil {
 		panic(err)
 	}
@@ -91,47 +91,37 @@ func (c *Client) NewOption(kind string, value int) []byte {
 }
 
 // The 3 way handshake.
-func (c *Client) Connect() {
-	// mss_bytes, _ := hex.DecodeString("020405b4") // Hardcoded mss = 1460 bytes
+func (c *Client) Connect() error {
 	mss_bytes := c.NewOption("mss", int(c.mss))
 	err := c.SendWithOptions(nil, mss_bytes, []string{"SYN"})
 	if err != nil {
-		panic(err)
+		return errors.New("1st handshake failed: " + err.Error())
 	}
 	_, _, err = c.recv(4096)
 	if err != nil {
-		panic(err)
+		return errors.New("2nd handshake failed: " + err.Error())
 	}
 	err = c.Send(nil, []string{"ACK"})
 	if err != nil {
-		panic(err)
-	}
-}
-
-// Send a "FIN, ACK" to tell the server we're done.
-func (c *Client) Teardown() error {
-	// Since we do use "close" instead of "keep-alive", the server will send us a "FIN, ACK" when it's done.
-	// We just send back a "FIN, ACK".
-	err := c.Send(nil, []string{"FIN", "ACK"})
-	if err != nil {
-		return errors.New("error sending FIN, ACK: " + err.Error())
-	}
-	_, _, err = c.recv(4096)
-	if err != nil {
-		return errors.New("error receiving final ACK: " + err.Error())
+		return errors.New("3rd handshake failed: " + err.Error())
 	}
 	return nil
 }
 
-// Close the send_socket and recv_socket file descriptors.
-func (c *Client) CloseSockets() error {
-	err := syscall.Close(c.send_socket)
-	if err != nil {
-		return errors.New("error closing send socket: " + err.Error())
+// Send a packet with the payload and flags. Used 99% of the time.
+func (c *Client) Send(payload []byte, tcp_flags []string) error {
+	// You can send an empty byte or nil, it doesn't matter.
+	if payload == nil {
+		payload = []byte{}
 	}
-	err = syscall.Close(c.recv_socket)
+	packet := c.makePacket(payload, []byte{}, tcp_flags)
+	err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
 	if err != nil {
-		return errors.New("error closing recv socket: " + err.Error())
+		return errors.New("error sending packet: " + err.Error())
+	}
+	if c.verbose {
+		fmt.Fprintf(tw, "--> Send %d bytes\tFlags: %v\tseq: %d, ack: %d\n\n", len(packet), tcp_flags, c.seq_num, c.ack_num)
+		tw.Flush()
 	}
 	return nil
 }
@@ -157,24 +147,7 @@ func (c *Client) SendWithOptions(payload []byte, tcp_options []byte, tcp_flags [
 	return nil
 }
 
-// Send a packet with the payload and flags. Used 99% of the time.
-func (c *Client) Send(payload []byte, tcp_flags []string) error {
-	// You can send an empty byte or nil, it doesn't matter.
-	if payload == nil {
-		payload = []byte{}
-	}
-	packet := c.makePacket(payload, []byte{}, tcp_flags)
-	err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
-	if err != nil {
-		return errors.New("error sending packet: " + err.Error())
-	}
-	if c.verbose {
-		fmt.Fprintf(tw, "--> Send %d bytes\tFlags: %v\tseq: %d, ack: %d\n\n", len(packet), tcp_flags, c.seq_num, c.ack_num)
-		tw.Flush()
-	}
-	return nil // Ready to receive all payloads from the server
-}
-
+// Receive all data from a GET request and return the raw payload.
 func (c *Client) RecvAll() (*[]byte, error) {
 	// First, receive the ACK of the initial GET request
 	payload, _, err := c.recv(4096)
@@ -195,13 +168,13 @@ func (c *Client) RecvAll() (*[]byte, error) {
 
 		// payload_map[c.seq_num] = PayloadTuple{data: payload, next: c.ack_num}
 		buf.Write(payload)
-		if !done {
+		if !done { // Send ACK and continue receiving
 			err = c.Send(nil, []string{"ACK"})
 			if err != nil {
 				return nil, err
 			}
 		} else {
-			err = c.Teardown()
+			err = c.teardown()
 			if err != nil {
 				return nil, err
 			}
@@ -255,6 +228,34 @@ func (c *Client) recv(bufsize int) ([]byte, bool, error) {
 		}
 	}
 	return nil, false, errors.New("recv timeout")
+}
+
+// Send a "FIN, ACK" to tell the server we're done.
+func (c *Client) teardown() error {
+	// Since we do use "close" instead of "keep-alive", the server will send us a "FIN, ACK" when it's done.
+	// We just send back a "FIN, ACK".
+	err := c.Send(nil, []string{"FIN", "ACK"})
+	if err != nil {
+		return errors.New("error sending FIN, ACK: " + err.Error())
+	}
+	_, _, err = c.recv(4096)
+	if err != nil {
+		return errors.New("error receiving final ACK: " + err.Error())
+	}
+	return nil
+}
+
+// Close the send_socket and recv_socket file descriptors.
+func (c *Client) CloseSockets() error {
+	err := syscall.Close(c.send_socket)
+	if err != nil {
+		return errors.New("error closing send socket: " + err.Error())
+	}
+	err = syscall.Close(c.recv_socket)
+	if err != nil {
+		return errors.New("error closing recv socket: " + err.Error())
+	}
+	return nil
 }
 
 // func (c *Client) mergePayloads(payload_map PayloadMap) []byte {
