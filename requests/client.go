@@ -151,7 +151,7 @@ func (c *Client) SendWithOptions(payload []byte, tcp_options []byte, tcp_flags [
 		return errors.New("error sending packet: " + err.Error())
 	}
 	if c.verbose {
-		fmt.Fprintf(tw, "--> Send %d bytes\tFlags: %v\tseq_num: %d, ack_num: %d\n\n", len(packet), tcp_flags, c.seq_num, c.ack_num)
+		fmt.Fprintf(tw, "--> Send %d bytes\tFlags: %v\tseq: %d, ack: %d\n\n", len(packet), tcp_flags, c.seq_num, c.ack_num)
 		tw.Flush()
 	}
 	return nil
@@ -169,7 +169,7 @@ func (c *Client) Send(payload []byte, tcp_flags []string) error {
 		return errors.New("error sending packet: " + err.Error())
 	}
 	if c.verbose {
-		fmt.Fprintf(tw, "--> Send %d bytes\tFlags: %v\tseq_num: %d, ack_num: %d\n\n", len(packet), tcp_flags, c.seq_num, c.ack_num)
+		fmt.Fprintf(tw, "--> Send %d bytes\tFlags: %v\tseq: %d, ack: %d\n\n", len(packet), tcp_flags, c.seq_num, c.ack_num)
 		tw.Flush()
 	}
 	return nil // Ready to receive all payloads from the server
@@ -234,7 +234,7 @@ func (c *Client) recv(bufsize int) ([]byte, bool, error) {
 		}
 		if ip.Dst_ip.Equal(c.my_ip) && tcp.Dst_port == c.my_port {
 			if c.verbose {
-				fmt.Fprintf(tw, "<-- Recv %d bytes\tFlags: %v\tseq_num: %d, ack_num: %d\n\n", n, tcp.Flags, tcp.Seq_num, tcp.Ack_num)
+				fmt.Fprintf(tw, "<-- Recv %d bytes\tFlags: %v\tseq: %d, ack: %d\n\n", n, tcp.Flags, tcp.Seq_num, tcp.Ack_num)
 				tw.Flush()
 			}
 			if pkg.Contains(tcp.Flags, []string{"FIN"}) {
