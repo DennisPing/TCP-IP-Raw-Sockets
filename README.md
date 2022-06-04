@@ -66,6 +66,59 @@ Verbose mode
 go test -v
 ```
 
+## Example Run in Verbose Mode
+
+```
+> sudo ./rawhttpget -v http://david.choffnes.com/classes/cs4700sp22/project4.php
+Server IP: 204.44.192.60
+--> Send 44 bytes	Flags: [SYN]		seq: 1527861304, ack: 0
+
+<-- Recv 44 bytes	Flags: [SYN ACK]	seq: 338724193, ack: 1527861305
+
+--> Send 40 bytes	Flags: [ACK]		seq: 1527861305, ack: 338724194
+
+--> Send 157 bytes	Flags: [ACK PSH]	seq: 1527861305, ack: 338724194
+
+<-- Recv 40 bytes	Flags: [ACK]		seq: 338724194, ack: 1527861422
+
+<-- Recv 1500 bytes	Flags: [ACK]		seq: 338724194, ack: 1527861422
+
+--> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338725654
+
+<-- Recv 1500 bytes	Flags: [ACK PSH]	seq: 338725654, ack: 1527861422
+
+--> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338727114
+
+<-- Recv 1500 bytes	Flags: [ACK]		seq: 338727114, ack: 1527861422
+
+--> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338728574
+
+<-- Recv 1500 bytes	Flags: [ACK PSH]	seq: 338728574, ack: 1527861422
+
+--> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338730034
+
+<-- Recv 1500 bytes	Flags: [ACK]		seq: 338730034, ack: 1527861422
+
+--> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338731494
+
+<-- Recv 1500 bytes	Flags: [ACK]		seq: 338731494, ack: 1527861422
+
+--> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338732954
+
+<-- Recv 1500 bytes	Flags: [ACK]		seq: 338732954, ack: 1527861422
+
+--> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338734414
+
+<-- Recv 385 bytes	Flags: [ACK PSH FIN]	seq: 338734414, ack: 1527861422
+
+--> Send 40 bytes	Flags: [FIN ACK]	seq: 1527861422, ack: 338734760
+
+<-- Recv 40 bytes	Flags: [ACK]		seq: 338734760, ack: 1527861423
+
+200 OK
+Wrote 22636 bytes to project4.php
+```
+
 ## Design Details
 
 - All the details about wrapping and unwrapping of packets have been abstracted into 2 functions:
