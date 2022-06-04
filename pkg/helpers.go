@@ -1,6 +1,7 @@
 package pkg
 
 import (
+	"fmt"
 	"net"
 	"syscall"
 )
@@ -36,6 +37,21 @@ func FindMyIP() net.IP {
 		}
 	}
 	panic(err) // Network is down
+}
+
+// Return the Ipv4 address of a domain name
+func LookupIP(hostname string) (net.IP, error) {
+	ips, err := net.LookupIP(hostname)
+	if err != nil {
+		return nil, fmt.Errorf("unable to resolve %s", hostname)
+	}
+	for _, ip := range ips {
+		if ipv4 := ip.To4(); ipv4 != nil {
+			fmt.Println("FOUND IT:", ipv4)
+			return ipv4, nil
+		}
+	}
+	return nil, fmt.Errorf("no IPv4 address found for %s", hostname)
 }
 
 // Check if two byte slices are equal
