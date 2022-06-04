@@ -43,7 +43,7 @@ func NewResponse(url string, data *[]byte) *Response {
 	// Check if header "Content-Encoding" exists
 	if _, ok := header_map["Content-Encoding"]; ok {
 		if header_map["Content-Encoding"] == "gzip" {
-			body = *decodePayload(body)
+			body = *decodeGzip(body)
 		}
 	}
 
@@ -67,12 +67,15 @@ func Get(u *url.URL, verbose bool) (*Response, error) {
 
 	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
 	client := NewClient(u.Hostname(), verbose)
-	client.Connect() // 3-way handshake
-	err := client.Send(header, []string{"ACK", "PSH"})
+	err := client.Connect()
 	if err != nil {
 		return nil, err
 	}
-	all_data, err := client.RecvAll()
+	err = client.Send(header, []string{"ACK", "PSH"})
+	if err != nil {
+		return nil, err
+	}
+	raw_data, err := client.RecvAll()
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +83,7 @@ func Get(u *url.URL, verbose bool) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	res := NewResponse(u.String(), all_data)
+	res := NewResponse(u.String(), raw_data)
 	return res, nil
 }
 
@@ -102,8 +105,8 @@ func prepHeader(u *url.URL, method string) []byte {
 	return []byte(status_line + header)
 }
 
-// Decode payload from gzip to plain text.
-func decodePayload(payload []byte) *[]byte {
+// Decode payload from gzip to regular bytes.
+func decodeGzip(payload []byte) *[]byte {
 	if len(payload) == 0 {
 		return &payload
 	}
