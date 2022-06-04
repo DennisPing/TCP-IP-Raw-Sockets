@@ -25,6 +25,7 @@ func main() {
 	flag.BoolVar(&verbose, "v", false, "verbose output")
 	flag.Parse()
 
+	// Validate input arguments
 	if flag.NArg() == 1 {
 		input_url = flag.Arg(0)
 	} else if flag.NArg() < 1 {
@@ -39,14 +40,14 @@ func main() {
 	if verbose {
 		fmt.Println("verbose output")
 	}
-
-	u, err := url.Parse(input_url)
+	target_url, err := url.Parse(input_url)
 	if err != nil {
 		fmt.Printf("Invalid URL: %s\n", err)
 		os.Exit(1)
 	}
 
-	res, err := requests.Get(*u, verbose)
+	// Make the GET request
+	res, err := requests.Get(target_url, verbose)
 	if err != nil {
 		fmt.Printf("GET request error: %s\n", err)
 		os.Exit(1)
@@ -57,7 +58,7 @@ func main() {
 	fmt.Println(res.Reason)
 	fmt.Println(res.Headers)
 
-	// Write content to file with both read write permissions
+	// Write response body to file
 	f, err := os.Create("output.log")
 	if err != nil {
 		fmt.Println(err)
