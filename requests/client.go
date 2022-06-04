@@ -2,13 +2,10 @@ package requests
 
 import (
 	"bytes"
-	"compress/gzip"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
+	"math/rand"
 	"net"
-	"net/http/httputil"
 	"syscall"
 	"time"
 
@@ -17,6 +14,7 @@ import (
 )
 
 type Client struct {
+	verbose     bool // Verbose output
 	hostname    string
 	my_ip       net.IP
 	my_port     uint16
@@ -42,37 +40,49 @@ type PayloadMap map[uint32]PayloadTuple
 // The payloads that have been sent. Key is seq_num, Value is PayloadTuple.
 type HistoryMap map[uint32][]PayloadTuple
 
-func InitClient(hostname string) *Client {
-	var c Client
-	c.hostname = hostname
-	c.my_ip = pkg.FindMyIP()
-	c.my_port = 54328
-	c.dst_ip = net.ParseIP("204.44.192.60").To4()
-	c.dst_port = 80
-	dst_ip := [4]byte{}
-	copy(dst_ip[:], c.dst_ip)
-	c.dst_addr = &syscall.SockaddrInet4{Port: int(c.dst_port), Addr: dst_ip}
-	// c.seq_num = rand.Uint32()
-	c.seq_num = 0
-	c.ack_num = 0
-	c.adwnd = 4096
-	c.mss = 1
-	send_socket, err := rawsocket.InitSendSocket(c.dst_ip.String(), int(c.dst_port))
+// Init a new Client struct that holds stateful information.
+func NewClient(hostname string, verbose bool) *Client {
+	server_ip, err := pkg.LookupIP(hostname) // Returns a 4 byte IPv4 address
 	if err != nil {
 		panic(err)
 	}
-	c.send_socket = send_socket
-	recv_socket, err := rawsocket.InitRecvSocket()
-	if err != nil {
-		panic(err)
+	addr := [4]byte{}
+	copy(addr[:], server_ip)
+
+	return &Client{
+		verbose:     verbose,
+		hostname:    hostname,
+		my_ip:       pkg.FindMyIP(),
+		my_port:     uint16(rand.Intn(65535-49152) + 49152), // random port between 49152 and 65535
+		dst_ip:      server_ip,
+		dst_port:    80,
+		dst_addr:    &syscall.SockaddrInet4{Port: 80, Addr: addr},
+		seq_num:     rand.Uint32(),
+		ack_num:     0,
+		adwnd:       4096,
+		mss:         1460,
+		send_socket: rawsocket.InitSendSocket(),
+		recv_socket: rawsocket.InitRecvSocket(),
 	}
-	c.recv_socket = recv_socket
-	return &c
+}
+
+// Return an option byte slice. Only supports mss and window scale.
+func (c *Client) NewOption(kind string, value int) []byte {
+	switch kind {
+	case "mss": // uint32
+		return []byte{0x02, 0x04, byte(value >> 8), byte(value & 0xff)}
+	case "wscale": // uint16
+		return []byte{0x01, 0x03, 0x03, byte(value)} // NOP (0x01) is built in for convenience sake.
+	default:
+		fmt.Printf("Unsupported TCP option: %s\n", kind)
+		return []byte{}
+	}
 }
 
 // The 3 way handshake.
 func (c *Client) Connect() {
-	mss_bytes, _ := hex.DecodeString("020405b4") // Hardcoded mss = 1460 bytes
+	// mss_bytes, _ := hex.DecodeString("020405b4") // Hardcoded mss = 1460 bytes
+	mss_bytes := c.NewOption("mss", int(c.mss))
 	err := c.SendWithOptions(nil, mss_bytes, []string{"SYN"})
 	if err != nil {
 		panic(err)
@@ -138,7 +148,8 @@ func (c *Client) Send(payload []byte, tcp_flags []string) error {
 	if err != nil {
 		return errors.New("error sending packet: " + err.Error())
 	}
-	fmt.Printf("Sending out seq_num = %d, ack_num = %d\n", c.seq_num, c.ack_num)
+	fmt.Printf("Sent %d bytes; seq_num: %d, ack_num: %d\n", len(packet), c.seq_num, c.ack_num)
+	fmt.Println("-----------------------------------------------------------")
 	return nil // Ready to receive all payloads from the server
 }
 
@@ -149,7 +160,7 @@ func (c *Client) RecvAll() (*[]byte, error) {
 		return nil, err
 	}
 	if len(payload) > 0 { // Something went wrong
-		return nil, errors.New("expected empty payload, but got: " + string(decodePayload(payload)))
+		return nil, errors.New("expected empty payload")
 	}
 	// Now receive to all the incoming packets of the GET response
 	var buf bytes.Buffer
@@ -176,10 +187,6 @@ func (c *Client) RecvAll() (*[]byte, error) {
 				return nil, err
 			}
 		} else {
-			err := c.Close() // Send out FIN, ACK and close sockets
-			if err != nil {
-				return nil, err
-			}
 			break
 		}
 	}
@@ -207,12 +214,12 @@ func (c *Client) recv(bufsize int) ([]byte, bool, error) {
 			return nil, false, err
 		}
 		if ip.Dst_ip.Equal(c.my_ip) && tcp.Dst_port == c.my_port {
-			fmt.Println("-------------------------------------------------")
-			fmt.Printf("Received %d bytes; flags = %v\n", n, tcp.Flags)
+			fmt.Printf("Received %d bytes; flags: %v\n", n, tcp.Flags)
+			fmt.Println("-----------------------------------------------------------")
 			// if len(tcp.payload) > 0 {
 			// 	fmt.Printf("%s\n", string(tcp.payload))
 			// }
-			if pkg.Contains(tcp.Flags, []string{"ACK"}) {
+			if pkg.Contains(tcp.Flags, []string{"FIN"}) {
 				// return decodePayload(tcp.payload), true, nil
 				c.seq_num = tcp.Ack_num
 				c.ack_num = tcp.Seq_num + uint32(len(tcp.Payload)) + 1
@@ -237,28 +244,28 @@ func (c *Client) recv(bufsize int) ([]byte, bool, error) {
 }
 
 // Decode a payload from chunked encoding to normal encoding.
-func decodePayload(payload []byte) []byte {
-	if len(payload) == 0 {
-		return payload
-	}
-	var buf bytes.Buffer
-	r := httputil.NewChunkedReader(bytes.NewReader(payload))
-	io.Copy(&buf, r)
-	decoded := buf.Bytes()
+// func decodePayload(payload []byte) []byte {
+// 	if len(payload) == 0 {
+// 		return payload
+// 	}
+// 	var buf bytes.Buffer
+// 	r := httputil.NewChunkedReader(bytes.NewReader(payload))
+// 	io.Copy(&buf, r)
+// 	decoded := buf.Bytes()
 
-	r2, err := gzip.NewReader(bytes.NewReader(decoded))
-	if err != nil {
-		panic(err)
-	}
-	defer r2.Close()
-	var buf2 bytes.Buffer
-	io.Copy(&buf2, r2)
-	decompressed := buf2.Bytes()
-	if err != nil {
-		panic(err)
-	}
-	return decompressed
-}
+// 	r2, err := gzip.NewReader(bytes.NewReader(decoded))
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	defer r2.Close()
+// 	var buf2 bytes.Buffer
+// 	io.Copy(&buf2, r2)
+// 	decompressed := buf2.Bytes()
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	return decompressed
+// }
 
 // func (c *Client) sendSyn() error {
 // 	fmt.Println("Sending SYN")
