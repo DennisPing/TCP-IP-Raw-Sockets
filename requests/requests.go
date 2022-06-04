@@ -2,8 +2,9 @@ package requests
 
 import (
 	"bytes"
+	"compress/gzip"
 	"errors"
-	"fmt"
+	"io"
 	"math/rand"
 	"net/url"
 	"strconv"
@@ -39,6 +40,13 @@ func NewResponse(url string, data *[]byte) *Response {
 		value := string(header_split[1])
 		header_map[key] = value
 	}
+	// Check if header "Content-Encoding" exists
+	if _, ok := header_map["Content-Encoding"]; ok {
+		if header_map["Content-Encoding"] == "gzip" {
+			body = *decodePayload(body)
+		}
+	}
+
 	return &Response{
 		Url:        url,
 		StatusCode: int(status_code),
@@ -57,8 +65,6 @@ func Get(u *url.URL, verbose bool) (*Response, error) {
 	}
 	header := prepHeader(u, "GET")
 
-	fmt.Println("PATH:", u.Path)
-
 	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
 	client := NewClient(u.Hostname(), verbose)
 	client.Connect() // 3-way handshake
@@ -66,15 +72,15 @@ func Get(u *url.URL, verbose bool) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := client.RecvAll()
+	all_data, err := client.RecvAll()
 	if err != nil {
 		return nil, err
 	}
-	err = client.Close()
+	err = client.CloseSockets()
 	if err != nil {
 		return nil, err
 	}
-	res := NewResponse(u.String(), data)
+	res := NewResponse(u.String(), all_data)
 	return res, nil
 }
 
@@ -94,4 +100,20 @@ func prepHeader(u *url.URL, method string) []byte {
 	}
 	header += "\r\n"
 	return []byte(status_line + header)
+}
+
+// Decode payload from gzip to plain text.
+func decodePayload(payload []byte) *[]byte {
+	if len(payload) == 0 {
+		return &payload
+	}
+	reader, err := gzip.NewReader(bytes.NewReader(payload))
+	if err != nil {
+		panic(err)
+	}
+	defer reader.Close()
+	var buf bytes.Buffer
+	io.Copy(&buf, reader)
+	var decoded []byte = buf.Bytes()
+	return &decoded
 }
