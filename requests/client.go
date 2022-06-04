@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"math/rand"
 	"net"
+	"os"
 	"syscall"
+	"text/tabwriter"
 	"time"
 
 	"github.com/DennisPing/TCP-IP-Raw-Sockets/pkg"
@@ -40,14 +42,23 @@ type PayloadMap map[uint32]PayloadTuple
 // The payloads that have been sent. Key is seq_num, Value is PayloadTuple.
 type HistoryMap map[uint32][]PayloadTuple
 
+var tw *tabwriter.Writer // Format verbose output
+
 // Init a new Client struct that holds stateful information.
 func NewClient(hostname string, verbose bool) *Client {
+	if verbose {
+		tw = tabwriter.NewWriter(os.Stdout, 24, 8, 1, '\t', 0)
+	}
 	server_ip, err := pkg.LookupIP(hostname) // Returns a 4 byte IPv4 address
 	if err != nil {
 		panic(err)
 	}
 	addr := [4]byte{}
 	copy(addr[:], server_ip)
+
+	if verbose {
+		fmt.Printf("Server IP: %s\n", server_ip.String())
+	}
 
 	return &Client{
 		verbose:     verbose,
@@ -97,10 +108,10 @@ func (c *Client) Connect() {
 	}
 }
 
-// Close the TCP connection and socket file descriptors.
-func (c *Client) Close() error {
-	// Since we do use "close" instead of "keep-alive", the server will send a "FIN, ACK" when it's done.
-	// We just send back a "FIN, ACK" as well.
+// Send a "FIN, ACK" to tell the server we're done.
+func (c *Client) Teardown() error {
+	// Since we do use "close" instead of "keep-alive", the server will send us a "FIN, ACK" when it's done.
+	// We just send back a "FIN, ACK".
 	err := c.Send(nil, []string{"FIN", "ACK"})
 	if err != nil {
 		return errors.New("error sending FIN, ACK: " + err.Error())
@@ -109,7 +120,12 @@ func (c *Client) Close() error {
 	if err != nil {
 		return errors.New("error receiving final ACK: " + err.Error())
 	}
-	err = syscall.Close(c.send_socket)
+	return nil
+}
+
+// Close the send_socket and recv_socket file descriptors.
+func (c *Client) CloseSockets() error {
+	err := syscall.Close(c.send_socket)
 	if err != nil {
 		return errors.New("error closing send socket: " + err.Error())
 	}
@@ -134,6 +150,10 @@ func (c *Client) SendWithOptions(payload []byte, tcp_options []byte, tcp_flags [
 	if err != nil {
 		return errors.New("error sending packet: " + err.Error())
 	}
+	if c.verbose {
+		fmt.Fprintf(tw, "--> Send %d bytes\tFlags: %v\tseq_num: %d, ack_num: %d\n\n", len(packet), tcp_flags, c.seq_num, c.ack_num)
+		tw.Flush()
+	}
 	return nil
 }
 
@@ -148,8 +168,10 @@ func (c *Client) Send(payload []byte, tcp_flags []string) error {
 	if err != nil {
 		return errors.New("error sending packet: " + err.Error())
 	}
-	fmt.Printf("Sent %d bytes; seq_num: %d, ack_num: %d\n", len(packet), c.seq_num, c.ack_num)
-	fmt.Println("-----------------------------------------------------------")
+	if c.verbose {
+		fmt.Fprintf(tw, "--> Send %d bytes\tFlags: %v\tseq_num: %d, ack_num: %d\n\n", len(packet), tcp_flags, c.seq_num, c.ack_num)
+		tw.Flush()
+	}
 	return nil // Ready to receive all payloads from the server
 }
 
@@ -171,14 +193,6 @@ func (c *Client) RecvAll() (*[]byte, error) {
 			return nil, err
 		}
 
-		// Check if the last 8 bytes are </html>\n'
-		// if len(payload) >= 8 {
-		// 	if EqualBytes(payload[len(payload)-8:], []byte("</html>\n")) {
-		// 		fmt.Println("Received full payload")
-		// 		break
-		// 	}
-		// }
-
 		// payload_map[c.seq_num] = PayloadTuple{data: payload, next: c.ack_num}
 		buf.Write(payload)
 		if !done {
@@ -187,53 +201,53 @@ func (c *Client) RecvAll() (*[]byte, error) {
 				return nil, err
 			}
 		} else {
+			err = c.Teardown()
+			if err != nil {
+				return nil, err
+			}
 			break
 		}
 	}
 	// page := c.mergePayloads(payload_map)
-	// fmt.Printf("Size of page: %d\n", len(page))
 	raw_response := buf.Bytes()
 	return &raw_response, nil
 }
 
 // Read the next incoming packet and update ack_num and seq_num.
 func (c *Client) recv(bufsize int) ([]byte, bool, error) {
-	time_now := time.Now()
-	timeout := time_now.Add(time.Second * 60)
+	timeout := time.Now().Add(time.Second * 60)
 
 	// The buffer used to store the incoming packet.
-	packet := make([]byte, bufsize)
+	buf := make([]byte, bufsize)
 
-	for time_now.Before(timeout) {
-		n, err := syscall.Read(c.recv_socket, packet)
+	for time.Now().Before(timeout) {
+		n, err := syscall.Read(c.recv_socket, buf)
 		if err != nil {
 			return nil, false, err
 		}
-		ip, tcp, err := rawsocket.Unwrap(packet[:n])
+		if n == 0 {
+			continue // No data received, loop again
+		}
+		ip, tcp, err := rawsocket.Unwrap(buf[:n])
 		if err != nil {
 			return nil, false, err
 		}
 		if ip.Dst_ip.Equal(c.my_ip) && tcp.Dst_port == c.my_port {
-			fmt.Printf("Received %d bytes; flags: %v\n", n, tcp.Flags)
-			fmt.Println("-----------------------------------------------------------")
-			// if len(tcp.payload) > 0 {
-			// 	fmt.Printf("%s\n", string(tcp.payload))
-			// }
+			if c.verbose {
+				fmt.Fprintf(tw, "<-- Recv %d bytes\tFlags: %v\tseq_num: %d, ack_num: %d\n\n", n, tcp.Flags, tcp.Seq_num, tcp.Ack_num)
+				tw.Flush()
+			}
 			if pkg.Contains(tcp.Flags, []string{"FIN"}) {
-				// return decodePayload(tcp.payload), true, nil
 				c.seq_num = tcp.Ack_num
 				c.ack_num = tcp.Seq_num + uint32(len(tcp.Payload)) + 1
 				return tcp.Payload, true, nil
-			}
-			if pkg.Contains(tcp.Flags, []string{"SYN"}) {
+			} else if pkg.Contains(tcp.Flags, []string{"SYN"}) {
 				c.seq_num = tcp.Ack_num
 				c.ack_num = tcp.Seq_num + 1
 				return tcp.Payload, false, nil
-			}
-			if pkg.Contains(tcp.Flags, []string{"ACK"}) {
+			} else if pkg.Contains(tcp.Flags, []string{"ACK"}) {
 				c.seq_num = tcp.Ack_num
 				c.ack_num = tcp.Seq_num + uint32(len(tcp.Payload))
-				// return decodePayload(tcp.payload), false, nil
 				return tcp.Payload, false, nil
 			} else {
 				return nil, false, errors.New("unexpected flags: " + fmt.Sprint(tcp.Flags))
@@ -242,46 +256,6 @@ func (c *Client) recv(bufsize int) ([]byte, bool, error) {
 	}
 	return nil, false, errors.New("recv timeout")
 }
-
-// Decode a payload from chunked encoding to normal encoding.
-// func decodePayload(payload []byte) []byte {
-// 	if len(payload) == 0 {
-// 		return payload
-// 	}
-// 	var buf bytes.Buffer
-// 	r := httputil.NewChunkedReader(bytes.NewReader(payload))
-// 	io.Copy(&buf, r)
-// 	decoded := buf.Bytes()
-
-// 	r2, err := gzip.NewReader(bytes.NewReader(decoded))
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	defer r2.Close()
-// 	var buf2 bytes.Buffer
-// 	io.Copy(&buf2, r2)
-// 	decompressed := buf2.Bytes()
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	return decompressed
-// }
-
-// func (c *Client) sendSyn() error {
-// 	fmt.Println("Sending SYN")
-// 	var mss int64 = 1460
-// 	// Convert mss to []byte
-// 	mss_bytes := make([]byte, 8)
-// 	binary.PutVarint(mss_bytes, int64(mss))
-
-// 	// mss_opt, _ := hex.DecodeString("020405b4") // Hardcoded MSS value = 1460
-// 	packet := c.makePacket([]byte{}, mss_bytes, []string{"SYN"})
-// 	err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
-// 	if err != nil {
-// 		return err
-// 	}
-// 	return nil
-// }
 
 // func (c *Client) mergePayloads(payload_map PayloadMap) []byte {
 // 	data := make([]byte, 0)
