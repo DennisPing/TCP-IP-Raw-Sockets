@@ -26,6 +26,11 @@ func TestContains(t *testing.T) {
 			expect: true,
 		},
 		{
+			big:    []string{"ACK"},
+			small:  []string{"ACK"},
+			expect: true,
+		},
+		{
 			big:    []string{"SYN", "ACK", "FIN"},
 			small:  []string{"SYN", "ACK", "FIN", "PSH"},
 			expect: false,
@@ -74,5 +79,11 @@ func TestLookupIPv4(t *testing.T) {
 	}
 	if !expect.Equal(ip) {
 		t.Errorf("Expect %v, but LookupIPv4(david.choffnes.com) = %v", expect, ip)
+	}
+
+	// Test error
+	ip, err = LookupIPv4("david.choffnes.com.invalid")
+	if err == nil {
+		t.Errorf("Expect error, but LookupIPv4(david.choffnes.com.invalid) = %v", ip)
 	}
 }

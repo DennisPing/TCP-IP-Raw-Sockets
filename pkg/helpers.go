@@ -32,7 +32,7 @@ func Contains(big []string, small []string) bool {
 func FindMyIP() net.IP {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		panic(err) // Network card is not working
+		panic(fmt.Sprintln("Network card is not working:", err))
 	}
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
@@ -41,7 +41,7 @@ func FindMyIP() net.IP {
 			}
 		}
 	}
-	panic(err) // Network is down
+	panic(fmt.Sprintln("Network is down:", err))
 }
 
 // Return the Ipv4 address of a domain name
