@@ -3,11 +3,16 @@ package pkg
 import (
 	"fmt"
 	"net"
-	"syscall"
 )
 
 // Return true if all elements in slice "small" are in slice "big"
 func Contains(big []string, small []string) bool {
+	if len(big) < len(small) {
+		return false
+	}
+	if len(big) == 0 || len(small) == 0 {
+		return false // Disallow empty slice
+	}
 	for _, s := range small {
 		found := false
 		for _, b := range big {
@@ -51,36 +56,4 @@ func LookupIPv4(hostname string) (net.IP, error) {
 		}
 	}
 	return nil, fmt.Errorf("no IPv4 address found for %s", hostname)
-}
-
-// Check if two byte slices are equal
-func EqualBytes(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for i, v := range a {
-		if v != b[i] {
-			return false
-		}
-	}
-	return true
-}
-
-// Check if two addresses are equal
-func EqualAddr(myaddr syscall.Sockaddr, theiraddr syscall.Sockaddr) bool {
-	ipv4a, ok := myaddr.(*syscall.SockaddrInet4)
-	if !ok {
-		return false
-	}
-	ipv4b, ok := theiraddr.(*syscall.SockaddrInet4)
-	if !ok {
-		return false
-	}
-	if ipv4a.Port != ipv4b.Port {
-		return false
-	}
-	if !EqualBytes(ipv4a.Addr[:], ipv4b.Addr[:]) {
-		return false
-	}
-	return true
 }
