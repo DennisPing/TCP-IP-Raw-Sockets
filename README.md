@@ -134,34 +134,16 @@ Wrote 22636 bytes to project4.php
 
 ## Design Details
 
-- All the details about wrapping and unwrapping of packets have been abstracted into 2 functions:
+- All the details about wrapping and unwrapping of packets have been abstracted away into 2 functions in the `rawsocket` package:
   1. `Wrap(IPHeader, TCPHeader) -> packet`
   2. `Unwrap(packet) -> IPHeader, TCPHeader, error`
-- When a packet is unwrapped, the TCP and IP checksums are **automatically checked**. If there is an error, it will return the error back to the client to handle. Likewise, when a packet is wrapped, its checksum is **automatically calculated** into the packet.
-- All the details about HTTP headers and payload have been abstracted away into the `requests` package.
-- The `requests` package manages the seq numbers, ack numbers, congestion window, advertised window, timeout, and retransmit.
+- When a packet is unwrapped, the TCP and IP checksums are automatically checked. If there is an error, it will return the error back to the client to handle. Likewise, when a packet is wrapped, its checksum is automatically calculated into the packet.
+- All the details about HTTP headers, requests, responses have been abstracted away into the `requests` package.
 - If a packet we sent out has not been ACK'd within 1 minute, the packet is assumed to be lost, so we retransmit it.
-- The payloads of the TCP headers are stored in a map for reconstruction at the end. The design is a linked list within a hashmap.
-
-## Payload Map Example
-
-| Key       | Value                     |
-| --------- | ------------------------- |
-| seq_num_1 | (payload_1, next_seq_num) |
-| seq_num_2 | (payload_2, next_seq_num) |
-| seq_num_4 | (payload_4, next_seq_num) |
-| seq_num_3 | (payload_3, next_seq_num) |
-| seq_num_5 | (payload_5, next_seq_num) |
-
-### How to reconstruct payload using this map:
-
-1. For loop through the length of this map.
-2. Find the lowest sequence number. This is the first piece.
-3. Use the pointer in the tuple to find the next piece. Append the pieces.
 
 ## Random Notes
 
-* This program uses HTTP/1.0 instead of HTTP/1.1 because servers using HTTP/1.1 sometimes send payloads with "chunked encoding" which is a pain to decode. This program does not use the `keep-alive` header, and it just GET's a target URL and terminates the connection. Thus, HTTP/1.0 is sufficient for our use case.
+* This program uses HTTP/1.0 instead of HTTP/1.1 because HTTP/1.1 may contain "chunked encoding" which is a pain to decode. Since this program does not use the `keep-alive` header, HTTP/1.0 is sufficient for our use case and it greatly simplies decoding.
 
 * This program accepts gzip encoding if the server sends gzip'd payloads.
 
