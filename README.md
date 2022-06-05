@@ -1,5 +1,5 @@
 ![Build](https://github.com/DennisPing/TCP-IP-Raw-Sockets/actions/workflows/go.yml/badge.svg)
-![Coverage](https://img.shields.io/badge/Coverage-41.0%25-yellow)
+![Coverage](https://img.shields.io/badge/Coverage-91.1%25-brightgreen)
 
 # TCP/IP Raw Sockets
 
