@@ -1,4 +1,4 @@
-[![Ubuntu build](https://github.com/DennisPing/TCP-IP-Raw-Sockets/actions/workflows/go.yml/badge.svg)
+![Ubuntu build](https://github.com/DennisPing/TCP-IP-Raw-Sockets/actions/workflows/go.yml/badge.svg)
 
 # TCP/IP Raw Sockets
 
