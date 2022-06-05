@@ -8,17 +8,13 @@ Dennis Ping
 
 ## Overview
 
-This project was originally done in Python3 and ported to Go for self-learning purposes.
+This project was originally done in Python and converted to Go for self-learning purposes.
 
-Due to the low-level details and bitwise operations of this project, unit testing was done to ensure correctness. All TCP and IP Header functions were tested to +90% coverage.
-
-Testing of the GET request was done by downloading the sample HTTP pages and verifying using `diff [file1] [file2]`.
-
-Debugging of the 3-way handshake and teardown was done on Wireshark.
+This program called `rawhttpget` that takes one URL, downloads the target URL page, and saves it into the current directory. The TCP/IP network stack are custom implemented, and all incoming & outgoing data packets utilize raw sockets. Due to the low-level details and bitwise operations of this project, unit testing was done to ensure correctness. Manual debugging was also done on Wireshark.
 
 ## Requirements
 
-Go 1.15+
+Go 1.16+
 
 This project only works on Linux.
 
@@ -73,6 +69,15 @@ Verbose mode
 ```
 go test -v
 ```
+
+## How to View Code Coverage
+
+```
+go test ./... -coverprofile=coverage.out
+go tool cover -html=coverage.out
+```
+
+This will show a GUI in your browser window :heart_eyes:
 
 ## Example Run in Verbose Mode
 
@@ -154,8 +159,10 @@ Wrote 22636 bytes to project4.php
 2. Find the lowest sequence number. This is the first piece.
 3. Use the pointer in the tuple to find the next piece. Append the pieces.
 
-## Important Lessons
+## Random Notes
 
-* "Chunked encoding is a required feature of HTTP/1.1. If you do not require any other 1.1-specific features, specify HTTP/1.0 in your request instead" ([StackOverflow post](https://stackoverflow.com/questions/31969990/how-to-tell-the-http-server-to-not-send-chunked-encoding)). Because I am using HTTP/1.1, I had to decode the chunked encoded payloads before writing them to the output file.
+* This program uses HTTP/1.0 instead of HTTP/1.1 because servers using HTTP/1.1 sometimes send payloads with "chunked encoding" which is a pain to decode. This program does not use the `keep-alive` header, and it just GET's a target URL and terminates the connection. Thus, HTTP/1.0 is sufficient for our use case.
 
-* "Transfer-Encoding: chunked" does not have a "Content-Length", and therefore, it sends a 0 length chunk (`0\r\n\r\n`) on the last payload . That is how the client knows it has received the last packet of the GET response.
+* This program accepts gzip encoding if the server sends gzip'd payloads.
+
+* Github Actions does not allow you to run in `sudo` mode (of course) so half of the unit tests cannot run in CI. It is best to run tests locally.
