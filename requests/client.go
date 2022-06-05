@@ -31,16 +31,16 @@ type Client struct {
 	recv_socket int    // recv_socket file descriptor
 }
 
-type PayloadTuple struct {
-	data []byte // tcp payload
-	next uint32 // the next seq_num
-}
+// type PayloadTuple struct {
+// 	data []byte // tcp payload
+// 	next uint32 // the next seq_num
+// }
 
 // The payloads that have been received. Key is seq_num, Value is PayloadTuple.
-type PayloadMap map[uint32]PayloadTuple
+// type PayloadMap map[uint32]PayloadTuple
 
 // The payloads that have been sent. Key is seq_num, Value is PayloadTuple.
-type HistoryMap map[uint32][]PayloadTuple
+// type HistoryMap map[uint32][]PayloadTuple
 
 var tw *tabwriter.Writer // Format verbose output
 
@@ -55,11 +55,10 @@ func NewClient(hostname string, verbose bool) *Client {
 	}
 	addr := [4]byte{}
 	copy(addr[:], server_ip)
-
 	if verbose {
 		fmt.Printf("Server IP: %s\n", server_ip.String())
 	}
-
+	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
 	return &Client{
 		verbose:     verbose,
 		hostname:    hostname,
@@ -70,7 +69,7 @@ func NewClient(hostname string, verbose bool) *Client {
 		dst_addr:    &syscall.SockaddrInet4{Port: 80, Addr: addr},
 		seq_num:     rand.Uint32(),
 		ack_num:     0,
-		adwnd:       4096,
+		adwnd:       65535,
 		mss:         1460,
 		send_socket: rawsocket.InitSendSocket(),
 		recv_socket: rawsocket.InitRecvSocket(),
@@ -97,7 +96,7 @@ func (c *Client) Connect() error {
 	if err != nil {
 		return errors.New("1st handshake failed: " + err.Error())
 	}
-	_, _, err = c.recv(4096)
+	_, _, err = c.recv(2048)
 	if err != nil {
 		return errors.New("2nd handshake failed: " + err.Error())
 	}
@@ -110,10 +109,6 @@ func (c *Client) Connect() error {
 
 // Send a packet with the payload and flags. Used 99% of the time.
 func (c *Client) Send(payload []byte, tcp_flags []string) error {
-	// You can send an empty byte or nil, it doesn't matter.
-	if payload == nil {
-		payload = []byte{}
-	}
 	packet := c.makePacket(payload, []byte{}, tcp_flags)
 	err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
 	if err != nil {
@@ -128,13 +123,6 @@ func (c *Client) Send(payload []byte, tcp_flags []string) error {
 
 // Send a packet with payload, options, and flags. Only used during the 3 way handshake.
 func (c *Client) SendWithOptions(payload []byte, tcp_options []byte, tcp_flags []string) error {
-	// You can send an empty byte or nil, it doesn't matter.
-	if payload == nil {
-		payload = []byte{}
-	}
-	if tcp_options == nil {
-		tcp_options = []byte{}
-	}
 	packet := c.makePacket(payload, tcp_options, tcp_flags)
 	err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
 	if err != nil {
@@ -150,22 +138,21 @@ func (c *Client) SendWithOptions(payload []byte, tcp_options []byte, tcp_flags [
 // Receive all data from a GET request and return the raw payload.
 func (c *Client) RecvAll() (*[]byte, error) {
 	// First, receive the ACK of the initial GET request
-	payload, _, err := c.recv(4096)
+	payload, _, err := c.recv(2048)
 	if err != nil {
 		return nil, err
 	}
 	if len(payload) > 0 { // Something went wrong
 		return nil, errors.New("expected empty payload")
 	}
-	// Now receive to all the incoming packets of the GET response
+	// Now receive all the incoming packets of the GET response
 	var buf bytes.Buffer
 	// payload_map := make(PayloadMap)
 	for {
-		payload, done, err := c.recv(4096)
+		payload, done, err := c.recv(2048)
 		if err != nil {
 			return nil, err
 		}
-
 		// payload_map[c.seq_num] = PayloadTuple{data: payload, next: c.ack_num}
 		buf.Write(payload)
 		if !done { // Send ACK and continue receiving
@@ -238,7 +225,7 @@ func (c *Client) teardown() error {
 	if err != nil {
 		return errors.New("error sending FIN, ACK: " + err.Error())
 	}
-	_, _, err = c.recv(4096)
+	_, _, err = c.recv(2048)
 	if err != nil {
 		return errors.New("error receiving final ACK: " + err.Error())
 	}
@@ -274,11 +261,18 @@ func (c *Client) CloseSockets() error {
 // Make a packet with a given payload, tcp_options, and tcp_flags.
 // Tcp_options should be an empty []byte{} unless you want to set the MSS during SYN.
 func (c *Client) makePacket(payload []byte, tcp_options []byte, tcp_flags []string) []byte {
+	// For developer safety. We don't like nil.
+	if payload == nil {
+		payload = []byte{}
+	}
+	if tcp_options == nil {
+		tcp_options = []byte{}
+	}
 	ip := rawsocket.IPHeader{
 		Version:     4,
 		Ihl:         5,
 		Tos:         0,
-		Tot_len:     1,
+		Tot_len:     1, // Wrap() will fill this in
 		Id:          0,
 		Flags:       []string{"DF"},
 		Frag_offset: 0,

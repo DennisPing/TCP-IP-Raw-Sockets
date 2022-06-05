@@ -5,10 +5,8 @@ import (
 	"compress/gzip"
 	"errors"
 	"io"
-	"math/rand"
 	"net/url"
 	"strconv"
-	"time"
 )
 
 type Response struct {
@@ -46,7 +44,6 @@ func NewResponse(url string, data *[]byte) *Response {
 			body = *decodeGzip(body)
 		}
 	}
-
 	return &Response{
 		Url:        url,
 		StatusCode: int(status_code),
@@ -56,16 +53,12 @@ func NewResponse(url string, data *[]byte) *Response {
 	}
 }
 
+// Send a GET request and return a Response.
 func Get(u *url.URL, verbose bool) (*Response, error) {
 	if u.Scheme != "http" {
 		return nil, errors.New("only HTTP is supported")
 	}
-	if u.Host != "david.choffnes.com" {
-		return nil, errors.New("only host david.choffnes.com is supported")
-	}
 	header := prepHeader(u, "GET")
-
-	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
 	client := NewClient(u.Hostname(), verbose)
 	err := client.Connect()
 	if err != nil {
@@ -87,6 +80,7 @@ func Get(u *url.URL, verbose bool) (*Response, error) {
 	return res, nil
 }
 
+// Build the HTTP header for a GET request.
 func prepHeader(u *url.URL, method string) []byte {
 	if method != "GET" {
 		panic("Only GET method is supported")
