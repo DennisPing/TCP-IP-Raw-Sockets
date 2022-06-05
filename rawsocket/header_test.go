@@ -178,109 +178,185 @@ func getTCPHeaderWithPayload(t *testing.T) *TCPHeader {
 
 // Test bit shifting flags **************************************************************
 
-func Test_IPFlagsBitshift01(t *testing.T) {
-	flags := []string{"DF"}
-	val := bitshiftIPFlags(flags)
-	decimal, _ := strconv.ParseInt("01000000", 2, 64)
-	ans := uint8(decimal)
-	if val != ans {
-		t.Errorf(Red("Bit shifting DF failed"))
-		fmt.Printf("Exp: %08b\nGot: %08b\n", ans, val)
+func Test_BitshiftIPFlags(t *testing.T) {
+	type test struct {
+		flags  []string
+		binary string // Human readable form
+	}
+	tests := []test{
+		{
+			flags:  []string{"RF"},
+			binary: "10000000",
+		},
+		{
+			flags:  []string{"DF"},
+			binary: "01000000",
+		},
+		{
+			flags:  []string{"MF"},
+			binary: "00100000",
+		},
+		{
+			flags:  []string{"DF", "MF"},
+			binary: "01100000",
+		},
+		{
+			flags:  []string{"RF", "DF", "MF"},
+			binary: "11100000",
+		},
+	}
+	for i, tc := range tests {
+		got := bitshiftIPFlags(tc.flags)
+		exp, _ := strconv.ParseUint(tc.binary, 2, 8)
+		if got != uint8(exp) {
+			msg := Red(fmt.Sprintf("Test_BitshiftIPFlags_%d: Expected %08b, Got %08b", i+1, exp, got))
+			t.Errorf("%s", msg)
+		}
 	}
 }
 
-func Test_IPFlagsBitshift02(t *testing.T) {
-	flags := []string{"DF", "MF"}
-	val := bitshiftIPFlags(flags)
-	decimal, _ := strconv.ParseInt("01100000", 2, 64)
-	ans := uint8(decimal)
-	if val != ans {
-		t.Errorf(Red("Bit shifting DF, MF failed"))
-		fmt.Printf("Exp: %08b\nGot: %08b\n", ans, val)
+func Test_UnbitshiftIPFlags(t *testing.T) {
+	type test struct {
+		binary string
+		flags  []string // Expected flags
+	}
+	tests := []test{
+		{
+			binary: "10000000",
+			flags:  []string{"RF"},
+		},
+		{
+			binary: "01000000",
+			flags:  []string{"DF"},
+		},
+		{
+			binary: "00100000",
+			flags:  []string{"MF"},
+		},
+		{
+			binary: "01100000",
+			flags:  []string{"DF", "MF"},
+		},
+		{
+			binary: "11100000",
+			flags:  []string{"RF", "DF", "MF"},
+		},
+	}
+	for i, tc := range tests {
+		dec, _ := strconv.ParseUint(tc.binary, 2, 8)
+		var flags []string = unbitshiftIPFlags(uint8(dec))
+		if len(flags) != len(tc.flags) && !pkg.Contains(flags, tc.flags) {
+			msg := Red(fmt.Sprintf("Test_UnbitshiftIPFlags_%d: Expected %v, Got %v", i+1, tc.flags, flags))
+			t.Errorf("%s", msg)
+		}
 	}
 }
 
-func Test_IPFlagsBitshift03(t *testing.T) {
-	flags := []string{"RF", "DF", "MF"}
-	val := bitshiftIPFlags(flags)
-	decimal, _ := strconv.ParseInt("11100000", 2, 64)
-	ans := uint8(decimal)
-	if val != ans {
-		t.Errorf(Red("Bit shifting RF, DF, MF failed"))
-		fmt.Printf("Exp: %08b\nGot: %08b\n", ans, val)
+func Test_BitshiftTCPFlags(t *testing.T) {
+	type test struct {
+		flags  []string
+		binary string // Human readable form
+	}
+	// Bits: [0, 0, 0, 0, 0, 0, 0, NS, CWR, ECE, URG, ACK, PSH, RST, SYN, FIN]
+	tests := []test{
+		{
+			flags:  []string{"FIN"},
+			binary: "0000000000000001",
+		},
+		{
+			flags:  []string{"SYN"},
+			binary: "0000000000000010",
+		},
+		{
+			flags:  []string{"RST"},
+			binary: "0000000000000100",
+		},
+		{
+			flags:  []string{"PSH"},
+			binary: "0000000000001000",
+		},
+		{
+			flags:  []string{"ACK"},
+			binary: "0000000000010000",
+		},
+		{
+			flags:  []string{"SYN", "ACK"},
+			binary: "0000000000010010",
+		},
+		{
+			flags:  []string{"FIN", "ACK"},
+			binary: "0000000000010001",
+		},
+		{
+			flags:  []string{"ACK", "PSH", "FIN"},
+			binary: "0000000000011001",
+		},
+		{
+			flags:  []string{"NS", "CWR", "ECE", "URG", "ACK", "PSH", "RST", "SYN", "FIN"},
+			binary: "0000000111111111",
+		},
+	}
+	for i, tc := range tests {
+		got := bitshiftTCPFlags(tc.flags)
+		exp, _ := strconv.ParseUint(tc.binary, 2, 16)
+		if got != uint16(exp) {
+			msg := Red(fmt.Sprintf("Test_BitshiftTCPFlags_%d: Expected %016b, Got %016b", i+1, exp, got))
+			t.Errorf("%s", msg)
+		}
 	}
 }
 
-func Test_IPFlagsUnbitshift01(t *testing.T) {
-	decimal, _ := strconv.ParseInt("01000000", 2, 64)
-	bitflags := uint8(decimal)
-	flags := unbitshiftIPFlags(bitflags)
-	// Check if flags contains "DF" anywhere
-	if len(flags) != 1 && !pkg.Contains(flags, []string{"DF"}) {
-		t.Errorf(Red("Unbit shifting DF failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", []string{"DF"}, flags)
+func Test_UnbitshiftFlags(t *testing.T) {
+	type test struct {
+		binary string
+		flags  []string // Expected flags
 	}
-}
-
-func Test_IPFlagsUnbitshift02(t *testing.T) {
-	decimal, _ := strconv.ParseInt("01100000", 2, 64)
-	bitflags := uint8(decimal)
-	flags := unbitshiftIPFlags(bitflags)
-	if len(flags) != 2 && !pkg.Contains(flags, []string{"DF", "MF"}) {
-		t.Errorf(Red("Unbit shifting DF, MF failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", []string{"DF", "MF"}, flags)
+	// Bits: [0, 0, 0, 0, 0, 0, 0, NS, CWR, ECE, URG, ACK, PSH, RST, SYN, FIN]
+	tests := []test{
+		{
+			binary: "0000000000000001",
+			flags:  []string{"FIN"},
+		},
+		{
+			binary: "0000000000000010",
+			flags:  []string{"SYN"},
+		},
+		{
+			binary: "0000000000000100",
+			flags:  []string{"RST"},
+		},
+		{
+			binary: "0000000000001000",
+			flags:  []string{"PSH"},
+		},
+		{
+			binary: "0000000000010000",
+			flags:  []string{"ACK"},
+		},
+		{
+			binary: "0000000000010010",
+			flags:  []string{"SYN", "ACK"},
+		},
+		{
+			binary: "0000000000010001",
+			flags:  []string{"FIN", "ACK"},
+		},
+		{
+			binary: "0000000000011001",
+			flags:  []string{"ACK", "PSH", "FIN"},
+		},
+		{
+			binary: "0000000111111111",
+			flags:  []string{"NS", "CWR", "ECE", "URG", "ACK", "PSH", "RST", "SYN", "FIN"},
+		},
 	}
-}
-
-func Test_IPFlagsUnbitshift03(t *testing.T) {
-	decimal, _ := strconv.ParseInt("11100000", 2, 64)
-	bitflags := uint8(decimal)
-	flags := unbitshiftIPFlags(bitflags)
-	if len(flags) != 3 && !pkg.Contains(flags, []string{"RF", "DF", "MF"}) {
-		t.Errorf(Red("Unbit shifting RF, DF, MF failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", []string{"RF", "DF", "MF"}, flags)
-	}
-}
-
-func Test_TCPFlagsBitshift01(t *testing.T) {
-	flags := []string{"SYN"}
-	val := bitshiftTCPFlags(flags)
-	decimal, _ := strconv.ParseInt("000000000000010", 2, 64)
-	ans := uint16(decimal)
-	if val != ans {
-		t.Errorf(Red("Bit shifting SYN failed"))
-		fmt.Printf("Exp: %016b\nGot: %016b\n", ans, val)
-	}
-}
-
-func Test_TCPFlagsBitshift02(t *testing.T) {
-	flags := []string{"SYN", "ACK"}
-	val := bitshiftTCPFlags(flags)
-	decimal, _ := strconv.ParseInt("000000000010010", 2, 64)
-	ans := uint16(decimal)
-	if val != ans {
-		t.Errorf(Red("Bit shifting SYN, ACK failed"))
-		fmt.Printf("Exp: %016b\nGot: %016b\n", ans, val)
-	}
-}
-
-func Test_TCPFlagsUnbitshift01(t *testing.T) {
-	decimal, _ := strconv.ParseInt("000000000000010", 2, 64)
-	bitflags := uint16(decimal)
-	flags := unbitshiftTCPFlags(bitflags)
-	if len(flags) != 1 && !pkg.Contains(flags, []string{"SYN"}) {
-		t.Errorf(Red("Unbit shifting SYN failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", []string{"SYN"}, flags)
-	}
-}
-
-func Test_TCPFlagsUnbitshift02(t *testing.T) {
-	decimal, _ := strconv.ParseInt("000000000010010", 2, 64)
-	bitflags := uint16(decimal)
-	flags := unbitshiftTCPFlags(bitflags)
-	if len(flags) != 2 && !pkg.Contains(flags, []string{"SYN", "ACK"}) {
-		t.Errorf(Red("Unbit shifting SYN, ACK failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", []string{"ACK", "SYN"}, flags)
+	for i, tc := range tests {
+		dec, _ := strconv.ParseUint(tc.binary, 2, 16)
+		var flags []string = unbitshiftTCPFlags(uint16(dec))
+		if len(flags) != len(tc.flags) && !pkg.Contains(flags, tc.flags) {
+			msg := Red(fmt.Sprintf("Test_UnbitshiftFlags_%d: Expected %v, Got %v", i+1, tc.flags, flags))
+			t.Errorf("%s", msg)
+		}
 	}
 }
 
