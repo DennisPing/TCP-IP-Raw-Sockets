@@ -1,5 +1,7 @@
 ![Ubuntu build](https://github.com/DennisPing/TCP-IP-Raw-Sockets/actions/workflows/go.yml/badge.svg)
 
+![Code coverage](https://github.com/DennisPing/TCP-IP-Raw-Sockets/actions/workflows/coverage.yml/badge.svg)
+
 # TCP/IP Raw Sockets
 
 Matthew Jones  
