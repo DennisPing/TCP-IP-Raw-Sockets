@@ -1,6 +1,5 @@
 ![Ubuntu build](https://github.com/DennisPing/TCP-IP-Raw-Sockets/actions/workflows/go.yml/badge.svg)
-
-![Code coverage](https://github.com/DennisPing/TCP-IP-Raw-Sockets/actions/workflows/coverage.yml/badge.svg)
+<a href='https://github.com/jpoles1/gopherbadger' target='_blank'>![gopherbadger-tag-do-not-edit](https://img.shields.io/badge/Go%20Coverage-41%25-brightgreen.svg?longCache=true&style=flat)</a>
 
 # TCP/IP Raw Sockets
 
