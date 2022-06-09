@@ -7,7 +7,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/DennisPing/TCP-IP-Raw-Sockets/requests"
+	myhttp "github.com/DennisPing/TCP-IP-Raw-Sockets/http"
+	"github.com/DennisPing/TCP-IP-Raw-Sockets/pkg"
 )
 
 func cliUsage() {
@@ -19,11 +20,10 @@ func cliUsage() {
 func main() {
 	var (
 		input_url string
-		verbose   bool
 	)
 
 	flag.Usage = cliUsage
-	flag.BoolVar(&verbose, "v", false, "verbose output")
+	flag.BoolVar(&pkg.Verbose, "v", false, "verbose output")
 	flag.Parse()
 
 	// Validate input arguments
@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// Make the GET request
-	res, err := requests.Get(u, verbose)
+	res, err := myhttp.Get(u)
 	if err != nil {
 		fmt.Printf("GET request error: %s\n", err)
 		os.Exit(1)
