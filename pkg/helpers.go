@@ -5,6 +5,9 @@ import (
 	"net"
 )
 
+// Global verbose flag
+var Verbose bool
+
 // Return true if all elements in slice "small" are in slice "big"
 func Contains(big []string, small []string) bool {
 	if len(big) < len(small) {
