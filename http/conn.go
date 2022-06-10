@@ -1,4 +1,4 @@
-package requests
+package http
 
 import (
 	"errors"
@@ -29,20 +29,21 @@ type Conn struct {
 	recv_socket int    // recv_socket file descriptor
 }
 
+// Essentially a node in a linked list.
 type PayloadTuple struct {
-	data []byte // tcp payload
-	next uint32 // the next seq_num (usually increment by 1460 bytes)
+	payload []byte // tcp payload
+	next    uint32 // the next seq_num (usually increments by 1460 bytes)
 }
 
-// The payloads that have been received. Key is seq_num, Value is PayloadTuple.
+// Essentially a linked list of received payloads. Key: seq_num, Value: PayloadTuple.
 type PayloadMap map[uint32]PayloadTuple
 
 // The payloads that have been sent. Key is seq_num, Value is PayloadTuple.
 // type HistoryMap map[uint32][]PayloadTuple
 
-var tw *tabwriter.Writer // Format verbose output
+var tw *tabwriter.Writer // Verbose output formatter.
 
-// Init a new Conn struct that holds stateful information.
+// Make a new Conn struct that holds stateful information.
 func NewConn(hostname string) *Conn {
 	if pkg.Verbose {
 		tw = tabwriter.NewWriter(os.Stdout, 24, 8, 1, '\t', 0)
@@ -119,7 +120,7 @@ func (c *Conn) Send(payload []byte, tcp_flags []string) error {
 }
 
 // Send a packet with payload, options, and flags. Only used during the 3 way handshake.
-func (c *Conn) SendWithOptions(payload []byte, tcp_options []byte, tcp_flags []string) error {
+func (c *Conn) SendWithOptions(payload, tcp_options []byte, tcp_flags []string) error {
 	packet := c.makePacket(payload, tcp_options, tcp_flags)
 	err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
 	if err != nil {
@@ -133,25 +134,24 @@ func (c *Conn) SendWithOptions(payload []byte, tcp_options []byte, tcp_flags []s
 }
 
 // Receive all data from a GET request and return the raw payload.
-func (c *Conn) RecvAll() (*[]byte, error) {
+func (c *Conn) RecvAll() ([]byte, error) {
 	// First, receive the ACK of the initial GET request
 	tcp, _, err := c.recv(2048)
 	if err != nil {
-		return nil, err
+		return nil, err // Bubble up and let http handle it.
 	}
-	if len(tcp.Payload) > 0 { // Something went wrong
-		return nil, errors.New("expected empty payload")
-	}
-	start_seq := tcp.Seq_num
+	start_seq := tcp.Seq_num // Hold the 1st seq_num in the linked list
+
 	// Now receive all the incoming packets of the GET response
-	// var buf bytes.Buffer
 	payload_map := make(PayloadMap)
+	tot_len := 0
 	for {
 		tcp, done, err := c.recv(2048)
 		if err != nil {
 			return nil, err
 		}
-		payload_map[tcp.Seq_num] = PayloadTuple{data: tcp.Payload, next: c.ack_num}
+		tot_len += len(tcp.Payload)
+		payload_map[tcp.Seq_num] = PayloadTuple{payload: tcp.Payload, next: c.ack_num}
 		if !done { // Send ACK and continue receiving
 			err = c.Send(nil, []string{"ACK"})
 			if err != nil {
@@ -165,8 +165,8 @@ func (c *Conn) RecvAll() (*[]byte, error) {
 			break
 		}
 	}
-	raw_response := c.mergePayloads(payload_map, start_seq)
-	return raw_response, nil
+	raw_response := c.mergePayloads(payload_map, start_seq, tot_len)
+	return *raw_response, nil
 }
 
 // Read the next incoming packet and update ack_num and seq_num.
@@ -179,7 +179,7 @@ func (c *Conn) recv(bufsize int) (*rawsocket.TCPHeader, bool, error) {
 	for time.Now().Before(timeout) {
 		n, err := syscall.Read(c.recv_socket, buf)
 		if err != nil {
-			return nil, false, err
+			return nil, false, errors.New("Syscall.Read: " + err.Error())
 		}
 		if n == 0 {
 			continue // No data received, loop again
@@ -206,7 +206,7 @@ func (c *Conn) recv(bufsize int) (*rawsocket.TCPHeader, bool, error) {
 				c.ack_num = tcp.Seq_num + uint32(len(tcp.Payload))
 				return tcp, false, nil
 			} else {
-				return nil, false, errors.New("unexpected flags: " + fmt.Sprint(tcp.Flags))
+				return nil, false, errors.New("unexpected flags: " + fmt.Sprintf("%v\n", tcp.Flags))
 			}
 		}
 	}
@@ -241,21 +241,18 @@ func (c *Conn) CloseSockets() error {
 	return nil
 }
 
-func (c *Conn) mergePayloads(payload_map PayloadMap, start_seq uint32) *[]byte {
-	data := make([]byte, 0)
+func (c *Conn) mergePayloads(payload_map PayloadMap, start_seq uint32, tot_len int) *[]byte {
+	merged := make([]byte, 0, tot_len) // Alloc this on the stack
 	next := start_seq
-	fmt.Println(next)
 	for {
 		if tuple, ok := payload_map[next]; ok {
-			fmt.Println("MERGING")
-			data = append(data, tuple.data...)
+			merged = append(merged, tuple.payload...)
 			next = tuple.next
 		} else {
-			fmt.Println("BREAKING")
 			break
 		}
 	}
-	return &data
+	return &merged
 }
 
 // Make a packet with a given payload, tcp_options, and tcp_flags.
