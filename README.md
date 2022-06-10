@@ -8,6 +8,8 @@ Dennis Ping
 
 ## Overview
 
+**TL;DR - Make an HTTP GET request from scratch; from the network layer to the application layer.**
+
 This project was originally done in Python and converted to Go for self-learning purposes.
 
 This program called `rawhttpget` that takes one URL, downloads the target URL page, and saves it into the current directory. The TCP/IP network stack are custom implemented, and all incoming & outgoing data packets utilize raw sockets. Due to the low-level details and bitwise operations of this project, unit testing was done to ensure correctness. Manual debugging was also done on Wireshark.
@@ -138,8 +140,17 @@ Wrote 22636 bytes to project4.php
   1. `Wrap(IPHeader, TCPHeader) -> packet`
   2. `Unwrap(packet) -> IPHeader, TCPHeader, error`
 - When a packet is unwrapped, the TCP and IP checksums are automatically checked. If there is an error, it will return the error back to the client to handle. Likewise, when a packet is wrapped, its checksum is automatically calculated into the packet.
-- All the details about HTTP headers, requests, responses have been abstracted away into the `requests` package.
-- If a packet we sent out has not been ACK'd within 1 minute, the packet is assumed to be lost, so we retransmit it.
+- The `http` package loosely mimics the Go std lib `net/conn` and `net/http`.
+- If a packet we sent out has not been ACK'd within 1 minute, the packet is assumed to be lost, so we retransmit it. This almost never happens since we only send out 1 packet which requires an ACK from the server (the single GET request packet).
+
+## Performance
+
+| File         | Size (MB) | Download Time (sec) |
+| ------------ | --------- | ------------------- |
+| project4.php | 9.5e-7    | 0.5                 |
+| 2MB.log      | 2.0       | 3.1                 |
+| 10MB.log     | 10.0      | 13.7                |
+| 50MB.log     | 50.0      | 68.7                |
 
 ## Random Notes
 
