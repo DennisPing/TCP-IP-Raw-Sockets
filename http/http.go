@@ -1,4 +1,4 @@
-package requests
+package http
 
 import (
 	"bytes"
@@ -17,8 +17,8 @@ type Response struct {
 	Body       []byte
 }
 
-func NewResponse(url string, data *[]byte) *Response {
-	split := bytes.SplitN(*data, []byte("\r\n\r\n"), 2)
+func NewResponse(url string, data []byte) *Response {
+	split := bytes.SplitN(data, []byte("\r\n\r\n"), 2)
 	top := split[0]
 	body := split[1]
 
@@ -58,15 +58,21 @@ func Get(u *url.URL) (*Response, error) {
 	if u.Scheme != "http" {
 		return nil, errors.New("only HTTP is supported")
 	}
-	header := prepHeader(u, "GET")
 	conn := NewConn(u.Hostname())
 	err := conn.Connect()
 	if err != nil {
 		return nil, err
 	}
+	header := prepHeader(u, "GET")
 	err = conn.Send(header, []string{"ACK", "PSH"})
 	if err != nil {
-		return nil, err
+		if err.Error() == "recv timeout" {
+			if err = conn.Send(header, []string{"ACK", "PSH"}); err != nil { // Try again
+				return nil, errors.New("retry attempts exceeded")
+			}
+		} else {
+			return nil, err
+		}
 	}
 	raw_data, err := conn.RecvAll()
 	if err != nil {
@@ -82,9 +88,6 @@ func Get(u *url.URL) (*Response, error) {
 
 // Build the HTTP header for a GET request.
 func prepHeader(u *url.URL, method string) []byte {
-	if method != "GET" {
-		panic("Only GET method is supported")
-	}
 	status_line := method + " " + u.Path + " HTTP/1.0\r\n"
 	header_map := map[string]string{
 		"Host":            u.Host,
