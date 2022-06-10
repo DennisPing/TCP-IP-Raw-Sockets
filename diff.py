@@ -29,7 +29,7 @@ def main():
 
     size1 = os.path.getsize(file1)
     size2 = os.path.getsize(file2)
-    print(f"{file1}:\t{size1} bytes\n{file2}:\t{size2} bytes")
+    print(f"{file1}: {size1} bytes\n{file2}: {size2} bytes")
 
 if __name__ == "__main__":
     main()
