@@ -31,8 +31,8 @@ func Contains(big []string, small []string) bool {
 	return true
 }
 
-// Find my IPv4 address
-func FindMyIP() net.IP {
+// Find my local IPv4 address
+func LookupLocalIP() net.IP {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		panic(fmt.Sprintln("Network card is not working:", err))
@@ -47,8 +47,8 @@ func FindMyIP() net.IP {
 	panic(fmt.Sprintln("Network is down:", err))
 }
 
-// Return the Ipv4 address of a domain name
-func LookupIPv4(hostname string) (net.IP, error) {
+// Find the IPv4 address of a remote host
+func LookupRemoteIP(hostname string) (net.IP, error) {
 	ips, err := net.LookupIP(hostname)
 	if err != nil {
 		return nil, fmt.Errorf("unable to resolve %s", hostname)

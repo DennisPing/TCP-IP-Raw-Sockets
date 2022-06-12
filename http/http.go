@@ -63,7 +63,7 @@ func Get(u *url.URL) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	header := prepHeader(u, "GET")
+	header := makeHeader(u, "GET")
 	err = conn.Send(header, []string{"ACK", "PSH"})
 	if err != nil {
 		if err.Error() == "recv timeout" {
@@ -87,7 +87,7 @@ func Get(u *url.URL) (*Response, error) {
 }
 
 // Build the HTTP header for a GET request.
-func prepHeader(u *url.URL, method string) []byte {
+func makeHeader(u *url.URL, method string) []byte {
 	status_line := method + " " + u.Path + " HTTP/1.0\r\n"
 	header_map := map[string]string{
 		"Host":            u.Host,

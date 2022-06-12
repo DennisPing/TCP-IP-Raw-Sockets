@@ -111,7 +111,7 @@ func TestPrepHeader(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		header_bytes := prepHeader(test.u, test.method)
+		header_bytes := makeHeader(test.u, test.method)
 		if compareUnorderedHeaders(header_bytes, test.expect) == false {
 			t.Errorf("\nExpect:\n%s\nGot:\n%s", test.expect, header_bytes)
 		}

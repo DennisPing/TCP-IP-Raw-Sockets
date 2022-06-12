@@ -38,17 +38,12 @@ type PayloadTuple struct {
 // Essentially a linked list of received payloads. Key: seq_num, Value: PayloadTuple.
 type PayloadMap map[uint32]PayloadTuple
 
-// The payloads that have been sent. Key is seq_num, Value is PayloadTuple.
-// type HistoryMap map[uint32][]PayloadTuple
-
-var tw *tabwriter.Writer // Verbose output formatter.
+// Verbose formatter
+var tw *tabwriter.Writer = tabwriter.NewWriter(os.Stdout, 24, 8, 1, '\t', 0)
 
 // Make a new Conn struct that holds stateful information.
 func NewConn(hostname string) *Conn {
-	if pkg.Verbose {
-		tw = tabwriter.NewWriter(os.Stdout, 24, 8, 1, '\t', 0)
-	}
-	server_ip, err := pkg.LookupIPv4(hostname) // Returns a 4 byte IPv4 address
+	server_ip, err := pkg.LookupRemoteIP(hostname) // Returns a 4 byte IPv4 address
 	if err != nil {
 		panic(err)
 	}
@@ -60,7 +55,7 @@ func NewConn(hostname string) *Conn {
 	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
 	return &Conn{
 		hostname:    hostname,
-		my_ip:       pkg.FindMyIP(),
+		my_ip:       pkg.LookupLocalIP(),
 		my_port:     uint16(rand.Intn(65535-49152) + 49152), // random port between 49152 and 65535
 		dst_ip:      server_ip,
 		dst_port:    80,
@@ -133,7 +128,7 @@ func (c *Conn) SendWithOptions(payload, tcp_options []byte, tcp_flags []string) 
 	return nil
 }
 
-// Receive all data from a GET request and return the raw payload.
+// Receive all data from the GET request and return the raw payload.
 func (c *Conn) RecvAll() ([]byte, error) {
 	// First, receive the ACK of the initial GET request
 	tcp, _, err := c.recv(2048)
@@ -158,7 +153,7 @@ func (c *Conn) RecvAll() ([]byte, error) {
 				return nil, err
 			}
 		} else {
-			err = c.teardown()
+			err = c.disconnect()
 			if err != nil {
 				return nil, err
 			}
@@ -193,14 +188,10 @@ func (c *Conn) recv(bufsize int) (*rawsocket.TCPHeader, bool, error) {
 				fmt.Fprintf(tw, "<-- Recv %d bytes\tFlags: %v\tseq: %d, ack: %d\n\n", n, tcp.Flags, tcp.Seq_num, tcp.Ack_num)
 				tw.Flush()
 			}
-			if pkg.Contains(tcp.Flags, []string{"FIN"}) {
+			if pkg.Contains(tcp.Flags, []string{"FIN"}) || pkg.Contains(tcp.Flags, []string{"SYN"}) {
 				c.seq_num = tcp.Ack_num
 				c.ack_num = tcp.Seq_num + uint32(len(tcp.Payload)) + 1
 				return tcp, true, nil
-			} else if pkg.Contains(tcp.Flags, []string{"SYN"}) {
-				c.seq_num = tcp.Ack_num
-				c.ack_num = tcp.Seq_num + 1
-				return tcp, false, nil
 			} else if pkg.Contains(tcp.Flags, []string{"ACK"}) {
 				c.seq_num = tcp.Ack_num
 				c.ack_num = tcp.Seq_num + uint32(len(tcp.Payload))
@@ -213,8 +204,8 @@ func (c *Conn) recv(bufsize int) (*rawsocket.TCPHeader, bool, error) {
 	return nil, false, errors.New("recv timeout")
 }
 
-// Send a "FIN, ACK" to tell the server we're done.
-func (c *Conn) teardown() error {
+// Send the "FIN, ACK" to disconnect from the server.
+func (c *Conn) disconnect() error {
 	// Since we do use "close" instead of "keep-alive", the server will send us a "FIN, ACK" when it's done.
 	// We just send back a "FIN, ACK".
 	err := c.Send(nil, []string{"FIN", "ACK"})
@@ -241,6 +232,7 @@ func (c *Conn) CloseSockets() error {
 	return nil
 }
 
+// Merge the payloads in the payload_map into a single byte array
 func (c *Conn) mergePayloads(payload_map PayloadMap, start_seq uint32, tot_len int) *[]byte {
 	merged := make([]byte, 0, tot_len) // Alloc this on the stack
 	next := start_seq

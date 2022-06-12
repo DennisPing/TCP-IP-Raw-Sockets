@@ -59,31 +59,46 @@ func TestContains(t *testing.T) {
 	}
 }
 
-func TestFindMyIP(t *testing.T) {
+func TestLookupLocalIP(t *testing.T) {
 	// Run exec "hostname -I" and capture the output
 	output, err := exec.Command("hostname", "-I").Output()
 	if err != nil {
 		t.Errorf("unable to find my IP via shell: %v", err)
 	}
 	expect := net.ParseIP(strings.TrimSuffix(string(output), " \n"))
-	if !expect.Equal(FindMyIP()) {
-		t.Errorf("Expect %v, but FindMyIP() = %v", expect, FindMyIP())
+	if !expect.Equal(LookupLocalIP()) {
+		t.Errorf("Expect %v, but FindMyIP() = %v", expect, LookupLocalIP())
 	}
 }
 
-func TestLookupIPv4(t *testing.T) {
-	expect := net.ParseIP("204.44.192.60")
-	ip, err := LookupIPv4("david.choffnes.com")
-	if err != nil {
-		t.Errorf("unable to resolve david.choffnes.com: %v", err)
+func TestLookupRemoteIP(t *testing.T) {
+	type test struct {
+		hostname string
+		expect   net.IP
 	}
-	if !expect.Equal(ip) {
-		t.Errorf("Expect %v, but LookupIPv4(david.choffnes.com) = %v", expect, ip)
+	tests := []test{
+		{
+			hostname: "david.choffnes.com",
+			expect:   net.ParseIP("204.44.192.60"),
+		},
+		{
+			hostname: "localhost",
+			expect:   net.ParseIP("127.0.0.1"),
+		},
+	}
+	for _, tc := range tests {
+		ip, err := LookupRemoteIP(tc.hostname)
+		if err != nil {
+			t.Errorf("unable to resolve %s: %v", tc.hostname, err)
+		}
+		if !tc.expect.Equal(ip) {
+			t.Errorf("Expect %v, but LookupRemoteIP(%s) = %v", tc.expect, tc.hostname, ip)
+		}
 	}
 
-	// Test error
-	ip, err = LookupIPv4("david.choffnes.com.invalid")
+	// Test error case
+	ip, err := LookupRemoteIP("david.choffnes.com.invalid")
 	if err == nil {
-		t.Errorf("Expect error, but LookupIPv4(david.choffnes.com.invalid) = %v", ip)
+		t.Errorf("Expect error, but LookupRemoteIP(david.choffnes.com.invalid) = %v", ip)
 	}
 }
