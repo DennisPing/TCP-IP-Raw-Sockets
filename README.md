@@ -137,7 +137,7 @@ Wrote 22636 bytes to project4.php
 
 | File         | Size (MB) | Download Time (sec) |
 | ------------ | --------- | ------------------- |
-| project4.php | 9.5e-7    | 0.5                 |
+| project4.php | 0.02      | 0.5                 |
 | 2MB.log      | 2.0       | 3.1                 |
 | 10MB.log     | 10.0      | 13.7                |
 | 50MB.log     | 50.0      | 68.7                |
