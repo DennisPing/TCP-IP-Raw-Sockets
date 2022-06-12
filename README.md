@@ -61,7 +61,7 @@ sudo ./rawhttpget -v http://david.choffnes.com/classes/cs4700sp22/project4.php
 sudo ./rawhttpget http://david.choffnes.com/classes/cs4700sp22/10MB.log
 ```
 
-## How to Run Tests
+## Testing
 
 Standard mode
 ```
@@ -72,8 +72,7 @@ Verbose mode
 go test -v
 ```
 
-## How to View Code Coverage
-
+Test coverage
 ```
 go test ./... -coverprofile=coverage.out
 go tool cover -html=coverage.out
@@ -134,15 +133,6 @@ Server IP: 204.44.192.60
 Wrote 22636 bytes to project4.php
 ```
 
-## Design Details
-
-- All the details about wrapping and unwrapping of packets have been abstracted away into 2 functions in the `rawsocket` package:
-  1. `Wrap(IPHeader, TCPHeader) -> packet`
-  2. `Unwrap(packet) -> IPHeader, TCPHeader, error`
-- When a packet is unwrapped, the TCP and IP checksums are automatically checked. If there is an error, it will return the error back to the client to handle. Likewise, when a packet is wrapped, its checksum is automatically calculated into the packet.
-- The `http` package loosely mimics the Go std lib `net/conn` and `net/http`.
-- If a packet we sent out has not been ACK'd within 1 minute, the packet is assumed to be lost, so we retransmit it. This almost never happens since we only send out 1 packet which requires an ACK from the server (the single GET request packet).
-
 ## Performance
 
 | File         | Size (MB) | Download Time (sec) |
@@ -151,6 +141,15 @@ Wrote 22636 bytes to project4.php
 | 2MB.log      | 2.0       | 3.1                 |
 | 10MB.log     | 10.0      | 13.7                |
 | 50MB.log     | 50.0      | 68.7                |
+
+## Design Details
+
+- All the details about wrapping and unwrapping of packets have been abstracted away into 2 functions in the `rawsocket` package:
+  1. `Wrap(IPHeader, TCPHeader) -> packet`
+  2. `Unwrap(packet) -> IPHeader, TCPHeader, error`
+- When a packet is unwrapped, the TCP and IP checksums are automatically checked. If there is an error, it will return the error back to the client to handle. Likewise, when a packet is wrapped, its checksum is automatically calculated into the packet.
+- The `http` package loosely mimics the Go std lib `net/conn` and `net/http`.
+- If a packet we sent out has not been ACK'd within 1 minute, the packet is assumed to be lost, so we retransmit it. This almost never happens since we only send out 1 packet that needs to get ACK'd.
 
 ## Random Notes
 
