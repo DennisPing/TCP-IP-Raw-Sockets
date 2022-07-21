@@ -1,7 +1,6 @@
 package rawsocket
 
 import (
-	"bytes"
 	"encoding/binary"
 	"net"
 )
@@ -59,7 +58,7 @@ func (ip *IPHeader) ToBytes() []byte {
 	binary.BigEndian.PutUint16(buf[4:6], ip.Id)
 	// [3 flag bits] + [13 fragment offset bits] = 16 bits
 	flags := bitshiftIPFlags(ip.Flags)
-	var combo2 uint16 = uint16(flags>>5)<<13 | ip.Frag_offset
+	var combo2 uint16 = uint16(flags)<<8 | ip.Frag_offset
 	binary.BigEndian.PutUint16(buf[6:8], combo2)
 	binary.BigEndian.PutUint16(buf[8:10], uint16(ip.Ttl)<<8|uint16(ip.Protocol))
 	binary.BigEndian.PutUint16(buf[10:12], uint16(0)) // Checksum
@@ -80,27 +79,26 @@ func (ip *IPHeader) ToBytes() []byte {
 // Parse a packet and to an IPv4 header
 func BytesToIP(packet []byte) *IPHeader {
 	var ip IPHeader
-	reader := bytes.NewReader(packet)
-	var combo1 uint8
-	binary.Read(reader, binary.BigEndian, &combo1)
-	ip.Version = combo1 >> 4
-	ip.Ihl = combo1 & 0xf
-	binary.Read(reader, binary.BigEndian, &ip.Tos)
-	binary.Read(reader, binary.BigEndian, &ip.Tot_len)
-	binary.Read(reader, binary.BigEndian, &ip.Id)
+	ip.Version = packet[0] >> 4
+	ip.Ihl = packet[0] & 0xf
+	ip.Tot_len = binary.BigEndian.Uint16(packet[2:4])
+	ip.Id = binary.BigEndian.Uint16(packet[4:6])
 	// Read the 3 bit flags + 13 bit fragment offset as one uint16
-	var combo2 uint16
-	binary.Read(reader, binary.BigEndian, &combo2)
+	var combo2 uint16 = binary.BigEndian.Uint16(packet[6:8])
 	bitflags := uint8(combo2 >> 8)
 	ip.Flags = unbitshiftIPFlags(bitflags)
 	ip.Frag_offset = combo2 & 0x1fff // This black magic removes the first 3 bits
-	binary.Read(reader, binary.BigEndian, &ip.Ttl)
-	binary.Read(reader, binary.BigEndian, &ip.Protocol)
-	binary.Read(reader, binary.BigEndian, &ip.Checksum)
+	ip.Ttl = packet[8]
+	ip.Protocol = packet[9]
+	ip.Checksum = binary.BigEndian.Uint16(packet[10:12])
 	ip.Src_ip = net.IP(make([]byte, 4))
-	binary.Read(reader, binary.BigEndian, &ip.Src_ip)
+	for i := 0; i < 4; i++ {
+		ip.Src_ip[i] = packet[12+i]
+	}
 	ip.Dst_ip = net.IP(make([]byte, 4))
-	binary.Read(reader, binary.BigEndian, &ip.Dst_ip)
+	for i := 0; i < 4; i++ {
+		ip.Dst_ip[i] = packet[16+i]
+	}
 	return &ip
 }
 
