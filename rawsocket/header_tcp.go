@@ -1,7 +1,6 @@
 package rawsocket
 
 import (
-	"bytes"
 	"encoding/binary"
 )
 
@@ -82,22 +81,20 @@ func (tcp *TCPHeader) ToBytes(ip *IPHeader) []byte {
 // Parse a byte array to a TCP header
 func BytesToTCP(data []byte) *TCPHeader {
 	tcp := new(TCPHeader)
-	reader := bytes.NewReader(data)
-	binary.Read(reader, binary.BigEndian, &tcp.Src_port)
-	binary.Read(reader, binary.BigEndian, &tcp.Dst_port)
-	binary.Read(reader, binary.BigEndian, &tcp.Seq_num)
-	binary.Read(reader, binary.BigEndian, &tcp.Ack_num)
+	tcp.Src_port = binary.BigEndian.Uint16(data[0:2])
+	tcp.Dst_port = binary.BigEndian.Uint16(data[2:4])
+	tcp.Seq_num = binary.BigEndian.Uint32(data[4:8])
+	tcp.Ack_num = binary.BigEndian.Uint32(data[8:12])
 	// Read the 4 bit Data_offset + 3 bit Reserved + 9 bit flags as one uint16 (2 bytes)
-	var combo uint16
-	binary.Read(reader, binary.BigEndian, &combo)
+	var combo uint16 = binary.BigEndian.Uint16(data[12:14])
 	// Get the first 4 bits of the combo
 	tcp.Data_offset = uint8(combo >> 12)
 	// Get the next 3 bits
 	tcp.Reserved = uint8(combo>>9) & 0x7
 	tcp.Flags = unbitshiftTCPFlags(combo)
-	binary.Read(reader, binary.BigEndian, &tcp.Window)
-	binary.Read(reader, binary.BigEndian, &tcp.Checksum)
-	binary.Read(reader, binary.BigEndian, &tcp.Urgent)
+	tcp.Window = binary.BigEndian.Uint16(data[14:16])
+	tcp.Checksum = binary.BigEndian.Uint16(data[16:18])
+	tcp.Urgent = binary.BigEndian.Uint16(data[18:20])
 	// Read the rest of data into Options
 	if tcp.Data_offset > 5 {
 		tcp.Options = data[20 : tcp.Data_offset*4]

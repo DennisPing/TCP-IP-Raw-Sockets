@@ -27,7 +27,7 @@ This project only works on Linux.
 sudo iptables -A OUTPUT -p tcp --tcp-flags RST RST -j DROP
 ```
 
-2. Find your "network interface" name using: `ifconfig -a`
+2. Find your "network interface" name using: `ifconfig -a` and disable gro, tx, rx 
 ```
 sudo ethtool -K <network interface> gro off
 sudo ethtool -K <network interface> tx off rx off
@@ -65,11 +65,11 @@ sudo ./rawhttpget http://david.choffnes.com/classes/cs4700sp22/10MB.log
 
 Standard mode
 ```
-go test
+go test ./...
 ```
 Verbose mode
 ```
-go test -v
+go test ./... -v
 ```
 
 Test coverage
@@ -137,10 +137,10 @@ Wrote 22636 bytes to project4.php
 
 | File         | Size (MB) | Download Time (sec) |
 | ------------ | --------- | ------------------- |
-| project4.php | 0.02      | 0.5                 |
-| 2MB.log      | 2.0       | 3.1                 |
-| 10MB.log     | 10.0      | 13.7                |
-| 50MB.log     | 50.0      | 68.7                |
+| project4.php | 0.02      | 0.3                 |
+| 2MB.log      | 2.0       | 3.0                 |
+| 10MB.log     | 10.0      | 13.0                |
+| 50MB.log     | 50.0      | 62.0                |
 
 ## Design Details
 

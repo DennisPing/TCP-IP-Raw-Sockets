@@ -78,7 +78,7 @@ func (ip *IPHeader) ToBytes() []byte {
 
 // Parse a packet and to an IPv4 header
 func BytesToIP(packet []byte) *IPHeader {
-	var ip IPHeader
+	ip := new(IPHeader)
 	ip.Version = packet[0] >> 4
 	ip.Ihl = packet[0] & 0xf
 	ip.Tot_len = binary.BigEndian.Uint16(packet[2:4])
@@ -99,7 +99,7 @@ func BytesToIP(packet []byte) *IPHeader {
 	for i := 0; i < 4; i++ {
 		ip.Dst_ip[i] = packet[16+i]
 	}
-	return &ip
+	return ip
 }
 
 // Wiki: https://en.wikipedia.org/wiki/IPv4_header_checksum
