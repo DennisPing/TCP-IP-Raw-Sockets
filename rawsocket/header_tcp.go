@@ -56,31 +56,27 @@ func unbitshiftTCPFlags(bitflags uint16) []string {
 
 // Convert a TCP header to a byte array
 func (tcp *TCPHeader) ToBytes(ip *IPHeader) []byte {
-	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.BigEndian, tcp.Src_port)
-	binary.Write(buf, binary.BigEndian, tcp.Dst_port)
-	binary.Write(buf, binary.BigEndian, tcp.Seq_num)
-	binary.Write(buf, binary.BigEndian, tcp.Ack_num)
-	var combo uint16
-	combo = uint16(tcp.Data_offset) << 12
-	combo |= uint16(tcp.Reserved) << 9
-	combo |= bitshiftTCPFlags(tcp.Flags)
-	binary.Write(buf, binary.BigEndian, combo)
-	binary.Write(buf, binary.BigEndian, tcp.Window)
-	binary.Write(buf, binary.BigEndian, uint16(0)) // Checksum
-	binary.Write(buf, binary.BigEndian, tcp.Urgent)
-	binary.Write(buf, binary.BigEndian, tcp.Options)
+	buf := make([]byte, int(tcp.Data_offset)*4+len(tcp.Payload))
+	binary.BigEndian.PutUint16(buf[0:2], tcp.Src_port)
+	binary.BigEndian.PutUint16(buf[2:4], tcp.Dst_port)
+	binary.BigEndian.PutUint32(buf[4:8], tcp.Seq_num)
+	binary.BigEndian.PutUint32(buf[8:12], tcp.Ack_num)
+	var combo uint16 = uint16(tcp.Data_offset)<<12 | uint16(tcp.Reserved)<<9 | bitshiftTCPFlags(tcp.Flags)
+	binary.BigEndian.PutUint16(buf[12:14], combo)
+	binary.BigEndian.PutUint16(buf[14:16], tcp.Window)
+	binary.BigEndian.PutUint16(buf[16:18], uint16(0)) // Checksum
+	binary.BigEndian.PutUint16(buf[18:20], tcp.Urgent)
+	copy(buf[20:], tcp.Options)
+
 	if len(tcp.Payload) > 0 {
-		binary.Write(buf, binary.BigEndian, tcp.Payload)
+		copy(buf[int(tcp.Data_offset)*4:], tcp.Payload)
 	}
-	data := buf.Bytes()
 	// Pad data with zeros until length is minimum 20 bytes
-	for i := 0; i < 20-len(data); i++ {
-		data = append(data, 0)
+	for i := 0; i < 20-len(buf); i++ {
+		buf = append(buf, 0)
 	}
-	checksum := TCPChecksum(data, ip)
-	binary.BigEndian.PutUint16(data[16:18], checksum)
-	return data
+	binary.BigEndian.PutUint16(buf[16:18], TCPChecksum(buf, ip))
+	return buf
 }
 
 // Parse a byte array to a TCP header

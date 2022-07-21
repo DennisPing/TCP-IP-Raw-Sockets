@@ -52,27 +52,29 @@ func unbitshiftIPFlags(bitflags uint8) []string {
 
 // Convert an IPv4 header to a byte array
 func (ip *IPHeader) ToBytes() []byte {
-	buf := new(bytes.Buffer)
+	buf := make([]byte, 20)
 	var combo1 uint8 = (ip.Version << 4) | ip.Ihl
-	binary.Write(buf, binary.BigEndian, combo1)
-	binary.Write(buf, binary.BigEndian, ip.Tos)
-	binary.Write(buf, binary.BigEndian, ip.Tot_len)
-	binary.Write(buf, binary.BigEndian, ip.Id)
+	binary.BigEndian.PutUint16(buf[0:2], uint16(combo1)<<8|uint16(ip.Tos))
+	binary.BigEndian.PutUint16(buf[2:4], ip.Tot_len)
+	binary.BigEndian.PutUint16(buf[4:6], ip.Id)
 	// [3 flag bits] + [13 fragment offset bits] = 16 bits
-	var combo2 uint16
 	flags := bitshiftIPFlags(ip.Flags)
-	combo2 = uint16(flags>>5)<<13 | ip.Frag_offset
-	binary.Write(buf, binary.BigEndian, combo2)
-	binary.Write(buf, binary.BigEndian, ip.Ttl)
-	binary.Write(buf, binary.BigEndian, ip.Protocol)
-	binary.Write(buf, binary.BigEndian, uint16(0))
-	binary.Write(buf, binary.BigEndian, ip.Src_ip.To4())
-	binary.Write(buf, binary.BigEndian, ip.Dst_ip.To4())
-	data := buf.Bytes()
-	// Calculate checksum and set it into the [10:12] bytes
-	checksum := IPChecksum(data)
-	binary.BigEndian.PutUint16(data[10:12], checksum)
-	return data
+	var combo2 uint16 = uint16(flags>>5)<<13 | ip.Frag_offset
+	binary.BigEndian.PutUint16(buf[6:8], combo2)
+	binary.BigEndian.PutUint16(buf[8:10], uint16(ip.Ttl)<<8|uint16(ip.Protocol))
+	binary.BigEndian.PutUint16(buf[10:12], uint16(0)) // Checksum
+	var src_ip uint32
+	for _, b := range ip.Src_ip.To4() {
+		src_ip = (src_ip << 8) | uint32(b)
+	}
+	binary.BigEndian.PutUint32(buf[12:16], src_ip)
+	var dst_ip uint32
+	for _, b := range ip.Dst_ip.To4() {
+		dst_ip = (dst_ip << 8) | uint32(b)
+	}
+	binary.BigEndian.PutUint32(buf[16:20], dst_ip)
+	binary.BigEndian.PutUint16(buf[10:12], IPChecksum(buf))
+	return buf
 }
 
 // Parse a packet and to an IPv4 header
