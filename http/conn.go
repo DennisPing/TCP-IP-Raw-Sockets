@@ -69,7 +69,7 @@ func NewConn(hostname string) *Conn {
 	}
 }
 
-// Return an option byte slice. Only supports mss and window scale.
+// Return an 32-bit option byte slice. Only supports mss and window scale.
 func (c *Conn) NewOption(kind string, value int) []byte {
 	switch kind {
 	case "mss": // uint32
@@ -77,8 +77,7 @@ func (c *Conn) NewOption(kind string, value int) []byte {
 	case "wscale": // uint16
 		return []byte{0x01, 0x03, 0x03, byte(value)} // NOP (0x01) is built in for convenience sake.
 	default:
-		fmt.Printf("Unsupported TCP option: %s\n", kind)
-		return []byte{}
+		panic(fmt.Sprintf("Unsupported TCP option: %s", kind))
 	}
 }
 
@@ -133,7 +132,7 @@ func (c *Conn) RecvAll() ([]byte, error) {
 	// First, receive the ACK of the initial GET request
 	tcp, _, err := c.recv(2048)
 	if err != nil {
-		return nil, err // Bubble up and let http handle it.
+		return nil, err
 	}
 	start_seq := tcp.Seq_num // Hold the 1st seq_num in the linked list
 
@@ -168,7 +167,6 @@ func (c *Conn) RecvAll() ([]byte, error) {
 func (c *Conn) recv(bufsize int) (*rawsocket.TCPHeader, bool, error) {
 	timeout := time.Now().Add(time.Second * 60)
 
-	// The buffer used to store the incoming packet.
 	buf := make([]byte, bufsize)
 
 	for time.Now().Before(timeout) {
@@ -250,13 +248,6 @@ func (c *Conn) mergePayloads(payload_map PayloadMap, start_seq uint32, tot_len i
 // Make a packet with a given payload, tcp_options, and tcp_flags.
 // Tcp_options should be an empty []byte{} unless you want to set the MSS during SYN.
 func (c *Conn) makePacket(payload []byte, tcp_options []byte, tcp_flags []string) []byte {
-	// For developer safety. We don't like nil.
-	if payload == nil {
-		payload = []byte{}
-	}
-	if tcp_options == nil {
-		tcp_options = []byte{}
-	}
 	ip := rawsocket.IPHeader{
 		Version:     4,
 		Ihl:         5,
@@ -271,12 +262,7 @@ func (c *Conn) makePacket(payload []byte, tcp_options []byte, tcp_flags []string
 		Src_ip:      c.my_ip,
 		Dst_ip:      c.dst_ip,
 	}
-	var data_offset uint8
-	if len(tcp_options) > 0 {
-		data_offset = uint8(6) // MSS option is set
-	} else {
-		data_offset = uint8(5) // Everything else
-	}
+	data_offset := uint8(5 + len(tcp_options)/32)
 	tcp := rawsocket.TCPHeader{
 		Src_port:    c.my_port,
 		Dst_port:    c.dst_port,

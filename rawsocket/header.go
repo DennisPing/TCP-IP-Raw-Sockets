@@ -24,8 +24,6 @@ func Unwrap(packet []byte) (*IPHeader, *TCPHeader, error) {
 // The Payload should be stored inside the TCP Header, if any.
 func Wrap(ip *IPHeader, tcp *TCPHeader) []byte {
 	ip.Tot_len = uint16(len(ip.ToBytes()) + len(tcp.ToBytes(ip)))
-	var ip_bytes []byte = ip.ToBytes()
-	var tcp_bytes []byte = tcp.ToBytes(ip)
-	var packet []byte = append(ip_bytes, tcp_bytes...)
+	var packet []byte = append(ip.ToBytes(), tcp.ToBytes(ip)...)
 	return packet
 }
