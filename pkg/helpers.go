@@ -7,6 +7,7 @@ import (
 
 // Global verbose flag
 var Verbose bool
+var Profile string
 
 // Return true if all elements in slice "small" are in slice "big"
 func Contains(big []string, small []string) bool {

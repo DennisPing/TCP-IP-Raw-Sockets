@@ -49,7 +49,11 @@ make
 ## How to Run
 
 ```
-sudo ./rawhttpget [-v] URL
+Usage: sudo ./rawhttpget [-v] URL
+Options:
+  -p string
+    	available profilers: cpu, mem
+  -v	verbose output
 ```
 
 The optional flag `-v` is for verbose output.
@@ -69,7 +73,7 @@ go test ./...
 ```
 Verbose mode
 ```
-go test ./... -v
+go test -v ./...
 ```
 
 Test coverage
@@ -150,6 +154,15 @@ Wrote 22636 bytes to project4.php
 - When a packet is unwrapped, the TCP and IP checksums are automatically checked. If there is an error, it will return the error back to the client to handle. Likewise, when a packet is wrapped, its checksum is automatically calculated into the packet.
 - The `http` package loosely mimics the Go std lib `net/conn` and `net/http`.
 - If a packet we sent out has not been ACK'd within 1 minute, the packet is assumed to be lost, so we retransmit it. This almost never happens since we only send out 1 packet that needs to get ACK'd.
+
+## CPU and Memory Profiling
+
+Profiling of the CPU and memory was done for benchmarking insights. [See guide here](https://flaviocopes.com/golang-profiling/).
+
+Example
+```
+go tool pprof --pdf ./rawhttpget ./path/file.pprof > ./path/file.pdf
+```
 
 ## Random Notes
 

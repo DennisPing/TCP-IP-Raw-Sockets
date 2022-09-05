@@ -9,6 +9,7 @@ import (
 
 	myhttp "github.com/DennisPing/TCP-IP-Raw-Sockets/http"
 	"github.com/DennisPing/TCP-IP-Raw-Sockets/pkg"
+	"github.com/pkg/profile"
 )
 
 func cliUsage() {
@@ -24,6 +25,7 @@ func main() {
 
 	flag.Usage = cliUsage
 	flag.BoolVar(&pkg.Verbose, "v", false, "verbose output")
+	flag.StringVar(&pkg.Profile, "p", "", "available profilers: cpu, mem")
 	flag.Parse()
 
 	// Validate input arguments
@@ -42,6 +44,15 @@ func main() {
 	if err != nil {
 		fmt.Printf("Invalid URL: %s\n", err)
 		os.Exit(1)
+	}
+
+	if pkg.Profile != "" {
+		switch pkg.Profile {
+		case "cpu":
+			defer profile.Start(profile.CPUProfile, profile.ProfilePath("./profiler")).Stop()
+		case "mem":
+			defer profile.Start(profile.MemProfile, profile.ProfilePath("./profiler")).Stop()
+		}
 	}
 
 	// Make the GET request
