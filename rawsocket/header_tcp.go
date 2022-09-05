@@ -119,6 +119,7 @@ func TCPChecksum(tcp_bytes []byte, ip *IPHeader) uint16 {
 	// copy(data[0:12], pseudo_header)
 	// copy(data[12:12+int(tcp_seg_length)], tcp_bytes)
 
+	// data := make([]byte, 0, 12+int(tcp_seg_length))
 	data := make([]byte, 0)
 	data = append(data, pseudo_header...)
 	data = append(data, tcp_bytes...)

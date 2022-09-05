@@ -6,9 +6,9 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http/httputil"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -606,7 +606,7 @@ func Test_GetResponsePayload(t *testing.T) {
 	got_body := string(body_bytes)
 
 	// Read the exp_body from partial_body.txt file
-	exp_body_bytes, err := ioutil.ReadFile("partial_body.txt")
+	exp_body_bytes, err := os.ReadFile("partial_body.txt")
 	if err != nil {
 		t.Errorf(Red(err.Error()))
 		return // File not found

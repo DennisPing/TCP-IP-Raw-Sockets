@@ -146,6 +146,8 @@ Wrote 22636 bytes to project4.php
 | 10MB.log     | 10.0      | 13.0                |
 | 50MB.log     | 50.0      | 62.0                |
 
+Why so slow? This basic implementation is synchronous (aka. blocking) while the real implementation is asynchronous.
+
 ## Design Details
 
 - All the details about wrapping and unwrapping of packets have been abstracted away into 2 functions in the `rawsocket` package:

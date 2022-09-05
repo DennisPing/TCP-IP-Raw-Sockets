@@ -83,6 +83,12 @@ func (c *Conn) NewOption(kind string, value int) []byte {
 
 // The 3 way handshake.
 func (c *Conn) Connect() error {
+	sockaddr := &syscall.SockaddrInet4{Port: int(c.dst_port)}
+	copy(sockaddr.Addr[:], c.dst_ip)
+	if err := syscall.Connect(c.send_socket, sockaddr); err != nil {
+		panic(fmt.Sprintf("error connecting send socket: %s", err.Error()))
+	}
+
 	mss_bytes := c.NewOption("mss", int(c.mss))
 	err := c.SendWithOptions(nil, mss_bytes, []string{"SYN"})
 	if err != nil {
@@ -102,7 +108,11 @@ func (c *Conn) Connect() error {
 // Send a packet with the payload and flags. Used 99% of the time.
 func (c *Conn) Send(payload []byte, tcp_flags []string) error {
 	packet := c.makePacket(payload, []byte{}, tcp_flags)
-	err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
+	// err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
+	n, err := syscall.Write(c.send_socket, packet)
+	if n == 0 {
+		return errors.New("sent 0 bytes")
+	}
 	if err != nil {
 		return errors.New("error sending packet: " + err.Error())
 	}
@@ -116,7 +126,11 @@ func (c *Conn) Send(payload []byte, tcp_flags []string) error {
 // Send a packet with payload, options, and flags. Only used during the 3 way handshake.
 func (c *Conn) SendWithOptions(payload, tcp_options []byte, tcp_flags []string) error {
 	packet := c.makePacket(payload, tcp_options, tcp_flags)
-	err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
+	// err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
+	n, err := syscall.Write(c.send_socket, packet)
+	if n == 0 {
+		return errors.New("sent 0 bytes")
+	}
 	if err != nil {
 		return errors.New("error sending packet: " + err.Error())
 	}
@@ -262,7 +276,7 @@ func (c *Conn) makePacket(payload []byte, tcp_options []byte, tcp_flags []string
 		Src_ip:      c.my_ip,
 		Dst_ip:      c.dst_ip,
 	}
-	data_offset := uint8(5 + len(tcp_options)/32)
+	data_offset := uint8(5 + len(tcp_options)/4)
 	tcp := rawsocket.TCPHeader{
 		Src_port:    c.my_port,
 		Dst_port:    c.dst_port,
