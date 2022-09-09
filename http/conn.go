@@ -86,7 +86,7 @@ func (c *Conn) Connect() error {
 	sockaddr := &syscall.SockaddrInet4{Port: int(c.dst_port)}
 	copy(sockaddr.Addr[:], c.dst_ip)
 	if err := syscall.Connect(c.send_socket, sockaddr); err != nil {
-		panic(fmt.Sprintf("error connecting send socket: %s", err.Error()))
+		return errors.New("connecting send socket failed: " + err.Error())
 	}
 
 	mss_bytes := c.NewOption("mss", int(c.mss))
