@@ -66,8 +66,9 @@ func TestLookupLocalIP(t *testing.T) {
 		t.Errorf("unable to find my IP via shell: %v", err)
 	}
 	expect := net.ParseIP(strings.TrimSuffix(string(output), " \n"))
-	if !expect.Equal(LookupLocalIP()) {
-		t.Errorf("Expect %v, but FindMyIP() = %v", expect, LookupLocalIP())
+	local_ip, _ := LookupLocalIP()
+	if !expect.Equal(local_ip) {
+		t.Errorf("Expect %v, but FindMyIP() = %v", expect, local_ip)
 	}
 }
 

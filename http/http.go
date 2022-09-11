@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"errors"
+	"fmt"
 	"io"
 	"net/url"
 	"strconv"
@@ -58,8 +59,11 @@ func Get(u *url.URL) (*Response, error) {
 	if u.Scheme != "http" {
 		return nil, errors.New("only HTTP is supported")
 	}
-	conn := NewConn(u.Hostname())
-	err := conn.Connect()
+	conn, err := NewConn(u.Hostname())
+	if err != nil {
+		return nil, err
+	}
+	err = conn.Connect()
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +113,7 @@ func decodeGzip(payload []byte) *[]byte {
 	}
 	reader, err := gzip.NewReader(bytes.NewReader(payload))
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("Unable to create gzip reader: %s", err))
 	}
 	defer reader.Close()
 	var buf bytes.Buffer

@@ -53,7 +53,7 @@ func unbitshiftTCPFlags(bitflags uint16) []string {
 	return flags
 }
 
-// Convert a TCP header to a byte array
+// Convert a TCP header into a byte array
 func (tcp *TCPHeader) ToBytes(ip *IPHeader) []byte {
 	buf := make([]byte, int(tcp.Data_offset)*4+len(tcp.Payload))
 	binary.BigEndian.PutUint16(buf[0:2], tcp.Src_port)
@@ -78,7 +78,7 @@ func (tcp *TCPHeader) ToBytes(ip *IPHeader) []byte {
 	return buf
 }
 
-// Parse a byte array to a TCP header
+// Convert a byte array into a TCP header
 func BytesToTCP(data []byte) *TCPHeader {
 	tcp := new(TCPHeader)
 	tcp.Src_port = binary.BigEndian.Uint16(data[0:2])
@@ -129,6 +129,6 @@ func TCPChecksum(tcp_bytes []byte, ip *IPHeader) uint16 {
 		sum += uint32(data[len(data)-1]) << 8
 	}
 	sum = (sum >> 16) + (sum & 0xffff)
-	sum = sum + (sum >> 16)
+	sum += sum >> 16
 	return uint16(^sum)
 }

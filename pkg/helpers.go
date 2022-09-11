@@ -33,19 +33,19 @@ func Contains(big []string, small []string) bool {
 }
 
 // Find my local IPv4 address
-func LookupLocalIP() net.IP {
+func LookupLocalIP() (net.IP, error) {
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
-		panic(fmt.Sprintln("Network card is not working:", err))
+		return nil, fmt.Errorf("your network card is not working: %w", err)
 	}
 	for _, addr := range addrs {
 		if ipnet, ok := addr.(*net.IPNet); ok && !ipnet.IP.IsLoopback() {
 			if ipnet.IP.To4() != nil {
-				return ipnet.IP.To4()
+				return ipnet.IP.To4(), nil
 			}
 		}
 	}
-	panic(fmt.Sprintln("Network is down:", err))
+	return nil, fmt.Errorf("your network is down: %w", err)
 }
 
 // Find the IPv4 address of a remote host

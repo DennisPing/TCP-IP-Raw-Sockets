@@ -35,27 +35,39 @@ type PayloadTuple struct {
 	next    uint32 // the next seq_num (usually increments by 1460 bytes)
 }
 
-// Essentially a linked list of received payloads. Key: seq_num, Value: PayloadTuple.
+// Essentially a linked list with O(1) lookup anywhere. Key: seq_num, Value: PayloadTuple.
 type PayloadMap map[uint32]PayloadTuple
 
 // Verbose formatter
 var tw *tabwriter.Writer = tabwriter.NewWriter(os.Stdout, 24, 8, 1, '\t', 0)
 
 // Make a new Conn struct that holds stateful information.
-func NewConn(hostname string) *Conn {
+func NewConn(hostname string) (*Conn, error) {
 	server_ip, err := pkg.LookupRemoteIP(hostname) // Returns a 4 byte IPv4 address
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	addr := [4]byte{}
 	copy(addr[:], server_ip)
 	if pkg.Verbose {
 		fmt.Printf("Server IP: %s\n", server_ip.String())
 	}
+	my_ip, err := pkg.LookupLocalIP()
+	if err != nil {
+		return nil, err
+	}
 	rand.Seed(time.Now().UnixNano()) // Seed the random number generator
+	send_fd, err := rawsocket.InitSendSocket()
+	if err != nil {
+		return nil, err
+	}
+	recv_fd, err := rawsocket.InitRecvSocket()
+	if err != nil {
+		return nil, err
+	}
 	return &Conn{
 		hostname:    hostname,
-		my_ip:       pkg.LookupLocalIP(),
+		my_ip:       my_ip,
 		my_port:     uint16(rand.Intn(65535-49152) + 49152), // random port between 49152 and 65535
 		dst_ip:      server_ip,
 		dst_port:    80,
@@ -64,9 +76,9 @@ func NewConn(hostname string) *Conn {
 		ack_num:     0,
 		adwnd:       65535,
 		mss:         1460,
-		send_socket: rawsocket.InitSendSocket(),
-		recv_socket: rawsocket.InitRecvSocket(),
-	}
+		send_socket: send_fd,
+		recv_socket: recv_fd,
+	}, nil
 }
 
 // Return an 32-bit option byte slice. Only supports mss and window scale.
@@ -86,21 +98,17 @@ func (c *Conn) Connect() error {
 	sockaddr := &syscall.SockaddrInet4{Port: int(c.dst_port)}
 	copy(sockaddr.Addr[:], c.dst_ip)
 	if err := syscall.Connect(c.send_socket, sockaddr); err != nil {
-		return errors.New("connecting send socket failed: " + err.Error())
+		return fmt.Errorf("connecting send socket failed: %w", err)
 	}
-
 	mss_bytes := c.NewOption("mss", int(c.mss))
-	err := c.SendWithOptions(nil, mss_bytes, []string{"SYN"})
-	if err != nil {
-		return errors.New("1st handshake failed: " + err.Error())
+	if err := c.SendWithOptions(nil, mss_bytes, []string{"SYN"}); err != nil {
+		return fmt.Errorf("1st handshake failed: %w", err)
 	}
-	_, _, err = c.recv(2048)
-	if err != nil {
-		return errors.New("2nd handshake failed: " + err.Error())
+	if _, _, err := c.recv(2048); err != nil {
+		return fmt.Errorf("2nd handshake failed: %w", err)
 	}
-	err = c.Send(nil, []string{"ACK"})
-	if err != nil {
-		return errors.New("3rd handshake failed: " + err.Error())
+	if err := c.Send(nil, []string{"ACK"}); err != nil {
+		return fmt.Errorf("3rd handshake failed: %w", err)
 	}
 	return nil
 }
@@ -108,7 +116,6 @@ func (c *Conn) Connect() error {
 // Send a packet with the payload and flags. Used 99% of the time.
 func (c *Conn) Send(payload []byte, tcp_flags []string) error {
 	packet := c.makePacket(payload, []byte{}, tcp_flags)
-	// err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
 	n, err := syscall.Write(c.send_socket, packet)
 	if n == 0 {
 		return errors.New("sent 0 bytes")
@@ -126,7 +133,6 @@ func (c *Conn) Send(payload []byte, tcp_flags []string) error {
 // Send a packet with payload, options, and flags. Only used during the 3 way handshake.
 func (c *Conn) SendWithOptions(payload, tcp_options []byte, tcp_flags []string) error {
 	packet := c.makePacket(payload, tcp_options, tcp_flags)
-	// err := syscall.Sendto(c.send_socket, packet, 0, c.dst_addr)
 	n, err := syscall.Write(c.send_socket, packet)
 	if n == 0 {
 		return errors.New("sent 0 bytes")
@@ -220,13 +226,11 @@ func (c *Conn) recv(bufsize int) (*rawsocket.TCPHeader, bool, error) {
 func (c *Conn) disconnect() error {
 	// Since we do use "close" instead of "keep-alive", the server will send us a "FIN, ACK" when it's done.
 	// We just send back a "FIN, ACK".
-	err := c.Send(nil, []string{"FIN", "ACK"})
-	if err != nil {
-		return errors.New("error sending FIN, ACK: " + err.Error())
+	if err := c.Send(nil, []string{"FIN", "ACK"}); err != nil {
+		return fmt.Errorf("error sending FIN, ACK: %w", err)
 	}
-	_, _, err = c.recv(2048)
-	if err != nil {
-		return errors.New("error receiving final ACK: " + err.Error())
+	if _, _, err := c.recv(2048); err != nil {
+		return fmt.Errorf("error receiving final ACK: %w", err)
 	}
 	return nil
 }
@@ -246,7 +250,7 @@ func (c *Conn) CloseSockets() error {
 
 // Merge the payloads in the payload_map into a single byte array
 func (c *Conn) mergePayloads(payload_map PayloadMap, start_seq uint32, tot_len int) *[]byte {
-	merged := make([]byte, 0, tot_len) // Alloc this on the stack
+	merged := make([]byte, 0, tot_len)
 	next := start_seq
 	for {
 		if tuple, ok := payload_map[next]; ok {

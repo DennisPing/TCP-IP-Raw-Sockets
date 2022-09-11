@@ -49,7 +49,7 @@ func unbitshiftIPFlags(bitflags uint8) []string {
 	return flags
 }
 
-// Convert an IPv4 header to a byte array
+// Convert an IPv4 header into a byte array
 func (ip *IPHeader) ToBytes() []byte {
 	buf := make([]byte, 20)
 	var combo1 uint8 = (ip.Version << 4) | ip.Ihl
@@ -76,7 +76,7 @@ func (ip *IPHeader) ToBytes() []byte {
 	return buf
 }
 
-// Parse a packet and to an IPv4 header
+// Convert a byte array into an IPv4 header
 func BytesToIP(packet []byte) *IPHeader {
 	ip := new(IPHeader)
 	ip.Version = packet[0] >> 4
@@ -110,6 +110,6 @@ func IPChecksum(b []byte) uint16 {
 		sum += uint32(b[i])<<8 | uint32(b[i+1])
 	}
 	sum = (sum >> 16) + (sum & 0xffff)
-	sum = sum + (sum >> 16)
+	sum += sum >> 16
 	return uint16(^sum)
 }
