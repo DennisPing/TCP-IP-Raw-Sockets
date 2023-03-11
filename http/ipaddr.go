@@ -1,36 +1,9 @@
-package pkg
+package http
 
 import (
 	"fmt"
 	"net"
 )
-
-// Global verbose flag
-var Verbose bool
-var Profile string
-
-// Return true if all elements in slice "small" are in slice "big"
-func Contains(big []string, small []string) bool {
-	if len(big) < len(small) {
-		return false
-	}
-	if len(big) == 0 || len(small) == 0 {
-		return false // Disallow empty slice
-	}
-	for _, s := range small {
-		found := false
-		for _, b := range big {
-			if s == b {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	return true
-}
 
 // Find my local IPv4 address
 func LookupLocalIP() (net.IP, error) {

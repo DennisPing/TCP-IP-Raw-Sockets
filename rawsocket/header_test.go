@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/DennisPing/TCP-IP-Raw-Sockets/pkg"
+	"github.com/stretchr/testify/assert"
 )
 
 // For console color output *************************************************************
@@ -80,7 +80,7 @@ func getIPHeaderFirstHandshake(t *testing.T) *IPHeader {
 	ip.Tos = 0
 	ip.Tot_len = 64
 	ip.Id = 0
-	ip.Flags = []string{"DF"}
+	ip.Flags = DF
 	ip.Frag_offset = 0
 	ip.Ttl = 64
 	ip.Protocol = 6
@@ -97,7 +97,7 @@ func getIPHeaderSecondHandshake(t *testing.T) *IPHeader {
 	ip.Tos = 0
 	ip.Tot_len = 60
 	ip.Id = 0
-	ip.Flags = []string{"DF"}
+	ip.Flags = DF
 	ip.Frag_offset = 0
 	ip.Ttl = 42
 	ip.Protocol = 6
@@ -115,7 +115,7 @@ func getIPHeaderWithPayload(t *testing.T) *IPHeader {
 	ip.Tos = 0
 	ip.Tot_len = 1426
 	ip.Id = 17988
-	ip.Flags = []string{"DF"}
+	ip.Flags = DF
 	ip.Frag_offset = 0
 	ip.Ttl = 42
 	ip.Protocol = 6
@@ -133,7 +133,7 @@ func getTCPHeaderFirstHandshake(t *testing.T) *TCPHeader {
 	tcp.Ack_num = 0
 	tcp.Data_offset = 11
 	tcp.Reserved = 0
-	tcp.Flags = []string{"SYN"}
+	tcp.Flags = SYN
 	tcp.Window = 65535
 	tcp.Checksum = 37527
 	tcp.Urgent = 0
@@ -150,7 +150,7 @@ func getTCPHeaderSecondHandshake(t *testing.T) *TCPHeader {
 	tcp.Ack_num = 2753993876
 	tcp.Data_offset = 10
 	tcp.Reserved = 0
-	tcp.Flags = []string{"SYN", "ACK"}
+	tcp.Flags = SYN | ACK
 	tcp.Window = 28960
 	tcp.Checksum = 39262
 	tcp.Urgent = 0
@@ -167,7 +167,7 @@ func getTCPHeaderWithPayload(t *testing.T) *TCPHeader {
 	tcp.Ack_num = 2753994376
 	tcp.Data_offset = 8
 	tcp.Reserved = 0
-	tcp.Flags = []string{"ACK"}
+	tcp.Flags = ACK
 	tcp.Window = 235
 	tcp.Checksum = 29098
 	tcp.Urgent = 0
@@ -178,185 +178,93 @@ func getTCPHeaderWithPayload(t *testing.T) *TCPHeader {
 
 // Test bit shifting flags **************************************************************
 
-func Test_BitshiftIPFlags(t *testing.T) {
+func Test_IPFlags(t *testing.T) {
 	type test struct {
-		flags  []string
-		binary string // Human readable form
+		flags  IPFlags // uint16
+		binary string  // Human readable form
 	}
 	tests := []test{
 		{
-			flags:  []string{"RF"},
-			binary: "10000000",
+			flags:  RF,
+			binary: "1000000000000000",
 		},
 		{
-			flags:  []string{"DF"},
-			binary: "01000000",
+			flags:  DF,
+			binary: "0100000000000000",
 		},
 		{
-			flags:  []string{"MF"},
-			binary: "00100000",
+			flags:  MF,
+			binary: "0010000000000000",
 		},
 		{
-			flags:  []string{"DF", "MF"},
-			binary: "01100000",
+			flags:  DF | MF,
+			binary: "0110000000000000",
 		},
 		{
-			flags:  []string{"RF", "DF", "MF"},
-			binary: "11100000",
+			flags:  RF | DF | MF,
+			binary: "1110000000000000",
 		},
 	}
-	for i, tc := range tests {
-		got := bitshiftIPFlags(tc.flags)
-		exp, _ := strconv.ParseUint(tc.binary, 2, 8)
-		if got != uint8(exp) {
-			msg := Red(fmt.Sprintf("Test_BitshiftIPFlags_%d: Expected %08b, Got %08b", i+1, exp, got))
-			t.Errorf("%s", msg)
-		}
+	for _, tt := range tests {
+		binary := fmt.Sprintf("%016b", tt.flags)
+		assert.Equal(t, tt.binary, binary)
+
+		// Do the reverse
+		binaryToFlags, _ := strconv.ParseUint(tt.binary, 2, 16)
+		assert.Equal(t, tt.flags, IPFlags(binaryToFlags))
 	}
 }
 
-func Test_UnbitshiftIPFlags(t *testing.T) {
+func Test_TCPFlags(t *testing.T) {
 	type test struct {
-		binary string
-		flags  []string // Expected flags
+		flags  TCPFlags // uint8
+		binary string   // Human readable form
 	}
 	tests := []test{
 		{
-			binary: "10000000",
-			flags:  []string{"RF"},
+			flags:  FIN,
+			binary: "00000001",
 		},
 		{
-			binary: "01000000",
-			flags:  []string{"DF"},
+			flags:  SYN,
+			binary: "00000010",
 		},
 		{
-			binary: "00100000",
-			flags:  []string{"MF"},
+			flags:  RST,
+			binary: "00000100",
 		},
 		{
-			binary: "01100000",
-			flags:  []string{"DF", "MF"},
+			flags:  PSH,
+			binary: "00001000",
 		},
 		{
-			binary: "11100000",
-			flags:  []string{"RF", "DF", "MF"},
+			flags:  ACK,
+			binary: "00010000",
+		},
+		{
+			flags:  SYN | ACK,
+			binary: "00010010",
+		},
+		{
+			flags:  FIN | ACK,
+			binary: "00010001",
+		},
+		{
+			flags:  ACK | PSH | FIN,
+			binary: "00011001",
+		},
+		{
+			flags:  CWR | ECE | URG | ACK | PSH | RST | SYN | FIN,
+			binary: "11111111",
 		},
 	}
-	for i, tc := range tests {
-		dec, _ := strconv.ParseUint(tc.binary, 2, 8)
-		var flags []string = unbitshiftIPFlags(uint8(dec))
-		if len(flags) != len(tc.flags) && !pkg.Contains(flags, tc.flags) {
-			msg := Red(fmt.Sprintf("Test_UnbitshiftIPFlags_%d: Expected %v, Got %v", i+1, tc.flags, flags))
-			t.Errorf("%s", msg)
-		}
-	}
-}
+	for _, tt := range tests {
+		binary := fmt.Sprintf("%08b", tt.flags)
+		assert.Equal(t, tt.binary, binary)
 
-func Test_BitshiftTCPFlags(t *testing.T) {
-	type test struct {
-		flags  []string
-		binary string // Human readable form
-	}
-	// Bits: [0, 0, 0, 0, 0, 0, 0, NS, CWR, ECE, URG, ACK, PSH, RST, SYN, FIN]
-	tests := []test{
-		{
-			flags:  []string{"FIN"},
-			binary: "0000000000000001",
-		},
-		{
-			flags:  []string{"SYN"},
-			binary: "0000000000000010",
-		},
-		{
-			flags:  []string{"RST"},
-			binary: "0000000000000100",
-		},
-		{
-			flags:  []string{"PSH"},
-			binary: "0000000000001000",
-		},
-		{
-			flags:  []string{"ACK"},
-			binary: "0000000000010000",
-		},
-		{
-			flags:  []string{"SYN", "ACK"},
-			binary: "0000000000010010",
-		},
-		{
-			flags:  []string{"FIN", "ACK"},
-			binary: "0000000000010001",
-		},
-		{
-			flags:  []string{"ACK", "PSH", "FIN"},
-			binary: "0000000000011001",
-		},
-		{
-			flags:  []string{"NS", "CWR", "ECE", "URG", "ACK", "PSH", "RST", "SYN", "FIN"},
-			binary: "0000000111111111",
-		},
-	}
-	for i, tc := range tests {
-		got := bitshiftTCPFlags(tc.flags)
-		exp, _ := strconv.ParseUint(tc.binary, 2, 16)
-		if got != uint16(exp) {
-			msg := Red(fmt.Sprintf("Test_BitshiftTCPFlags_%d: Expected %016b, Got %016b", i+1, exp, got))
-			t.Errorf("%s", msg)
-		}
-	}
-}
-
-func Test_UnbitshiftFlags(t *testing.T) {
-	type test struct {
-		binary string
-		flags  []string // Expected flags
-	}
-	// Bits: [0, 0, 0, 0, 0, 0, 0, NS, CWR, ECE, URG, ACK, PSH, RST, SYN, FIN]
-	tests := []test{
-		{
-			binary: "0000000000000001",
-			flags:  []string{"FIN"},
-		},
-		{
-			binary: "0000000000000010",
-			flags:  []string{"SYN"},
-		},
-		{
-			binary: "0000000000000100",
-			flags:  []string{"RST"},
-		},
-		{
-			binary: "0000000000001000",
-			flags:  []string{"PSH"},
-		},
-		{
-			binary: "0000000000010000",
-			flags:  []string{"ACK"},
-		},
-		{
-			binary: "0000000000010010",
-			flags:  []string{"SYN", "ACK"},
-		},
-		{
-			binary: "0000000000010001",
-			flags:  []string{"FIN", "ACK"},
-		},
-		{
-			binary: "0000000000011001",
-			flags:  []string{"ACK", "PSH", "FIN"},
-		},
-		{
-			binary: "0000000111111111",
-			flags:  []string{"NS", "CWR", "ECE", "URG", "ACK", "PSH", "RST", "SYN", "FIN"},
-		},
-	}
-	for i, tc := range tests {
-		dec, _ := strconv.ParseUint(tc.binary, 2, 16)
-		var flags []string = unbitshiftTCPFlags(uint16(dec))
-		if len(flags) != len(tc.flags) && !pkg.Contains(flags, tc.flags) {
-			msg := Red(fmt.Sprintf("Test_UnbitshiftFlags_%d: Expected %v, Got %v", i+1, tc.flags, flags))
-			t.Errorf("%s", msg)
-		}
+		// Do the reverse
+		binaryToFlags, _ := strconv.ParseUint(tt.binary, 2, 8)
+		assert.Equal(t, tt.flags, TCPFlags(binaryToFlags))
 	}
 }
 
@@ -422,18 +330,9 @@ func Test_TCPChecksumHandshake02(t *testing.T) {
 	tcp := getTCPHeaderSecondHandshake(t)
 	tcp_bytes := tcp.ToBytes(ip)
 	wireshark_tcp_hex := "0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
-	if TCPChecksum(tcp_bytes, ip) != 0 {
-		t.Errorf(Red("2nd handshake TCP checksum failed"))
-		tcp_hex := hex.EncodeToString(tcp_bytes)
-		printExpGot(wireshark_tcp_hex, tcp_hex)
-		printHexIdx(tcp_hex)
-	}
-	if hex.EncodeToString(tcp_bytes) != wireshark_tcp_hex {
-		t.Errorf(Red("2nd handshake TCP encoding failed"))
-		tcp_hex := hex.EncodeToString(tcp_bytes)
-		printExpGot(wireshark_tcp_hex, tcp_hex)
-		printHexIdx(tcp_hex)
-	}
+
+	assert.Equal(t, uint16(0), TCPChecksum(tcp_bytes, ip), "2nd handshake TCP checksum failed")
+	assert.Equal(t, wireshark_tcp_hex, hex.EncodeToString(tcp_bytes), "2nd handshake TCP encoding failed")
 }
 
 // This is a trivial test. Just to make sure the next test works properly.
@@ -482,7 +381,7 @@ func Test_GetResponsePayload(t *testing.T) {
 		Tos:         0,
 		Tot_len:     1426,
 		Id:          17988,
-		Flags:       []string{"DF"},
+		Flags:       DF,
 		Frag_offset: 0,
 		Ttl:         42,
 		Protocol:    6,
@@ -505,39 +404,8 @@ func Test_GetResponsePayload(t *testing.T) {
 	}
 
 	opt_bytes, _ := hex.DecodeString("0101080abeb95f0abb687a45")
-	var payload_hex string = "485454502f312e3120323030204f4b0d0a446174653a205468752c203331204d61722032" +
-		"3032322032303a35383a303220474d540d0a5365727665723a204170616368650d0a557067726164653a206832" +
-		"2c6832630d0a436f6e6e656374696f6e3a20557067726164652c204b6565702d416c6976650d0a566172793a20" +
-		"4163636570742d456e636f64696e672c557365722d4167656e740d0a436f6e74656e742d456e636f64696e673a" +
-		"20677a69700d0a4b6565702d416c6976653a2074696d656f75743d322c206d61783d3130300d0a5472616e7366" +
-		"65722d456e636f64696e673a206368756e6b65640d0a436f6e74656e742d547970653a20746578742f68746d6c" +
-		"3b20636861727365743d5554462d380d0a0d0a316661610d0a1f8b08000000000000036c8f414bc4301085effe" +
-		"8a31e7b65b4151966641da154f5a582f1e43326947d3a424d3d69f6fbb2be8c1d3e3cdc0f7deabae9bd7faedbd" +
-		"3d42cf833b5c559b8053be9302bdd80ea8cc2a03b202ddab9890a598d8e60fdb97891d1eda183e5033dceea13e" +
-		"c1dd7d59c2d3e48d1ad0b3720982853a0ce3c418e1057909f1937cb78746cd64a0ee83b51e53066d5f3445b5bb" +
-		"407f32fd4a9162265cc61059800e9e57ac140b19eea5c19934e66793017962522e4f5a39943745b9753c57bf60" +
-		"0c261d69640afe0fe9390c38aa0ec186f87fa70c1e530a9a1423ac632dae2eae69bfb34e9ad06bcce0f8857afa" +
-		"6693ec791a868130bcf32b8ec989444281818faa434519582a964e55551d5793045a3bd8e78888fe78ee1a86aa" +
-		"ea14f93eecf779df70d3599835414c9139c1e7dac273ff6ec53e4aa1e11ed06de4aaa643eae1d54561167b0019" +
-		"e68229a64731cbc1c2c94d21cac2090926ae7d3882d0fe6521e4ca07dcb7e21adb1fbefec40e87aa8c5c007418" +
-		"605de1374c86cf7e0fcbd5581a5a2cdb14eb6c69d612f394c827c7e60acc625adc3edc8d1e47f7c58d59e5e7a6" +
-		"677e878d9b4b5aba40ff9996e477e71638207dbd89e71aec614004641fc9916693e5f02be7416b85a274e329e9" +
-		"df5452b012c2cbd6ea29330398c9c75061a9d0326b4eb0cda189b177245d0ec9aa7ed08d18b494999ab98d4f06" +
-		"26472f6d3da18a29dbe0ff98a87ade0661203ad7bfe2c44292169ca903495a295dab4eddaa0e062e0e8dc321ce" +
-		"1565c87fef191325133c73dce97d9c3d55e4e015e642ad995d0a45c485d6c330a44b788434b744d661665ae346" +
-		"df541c04d032e987d33835c8cff78c2cfa990eefc74f63838437625febef0d70de995ef87e508d79d332f67e8f" +
-		"12565c58f3043cf971592ee4a9b63a4a926562b6408904bc23b01f1d3284d3ad6bda131c7b3cec92c85beb3a2c" +
-		"627e6f9a2e893c8b4d9dae986f281794408f6e97c49e47441fb237a11755523dcee675a6ae65cd334f5d01cfeb" +
-		"ee6f037a35bd8027389b1382047d5a68498e5c0d96c038371d0e660c45e17b49ded3f9ba44d2ac1405575a3d5c" +
-		"fbc7827984ba282553de7e39fc142e8bd8fb9fb46ad94d18068267f215dbf65ad3d028290d522e88aa48edad37" +
-		"c4c1344e70e53ce404a8c4cf77d60e121c2a2171f57a77d6bb3363248c6bb9e7dc6350495bea3aa59020a3c6ef" +
-		"a592bfde45529a86dc2c2a617943bea8a5b5cde1a6dc0c433f2b1001844207e31b130546aeac28ade2115ed7e4" +
-		"88c92ea4d125def30d8e287b5692c69bbe46efc3bb478569649f9251457fba25acca81067e3736c56273177017" +
-		"ad2eb73d46501c039fe80e6641dbc090a00cbe6e247bdd2c70a194c4e4d9cdce372f182815133f4f0ff1902451" +
-		"349f3b9476b70134d181ad1c0b7c8987b9732023a32fa2f1b015509cd97c2b93f1f0ae6dea0eedff47eac0ebe7" +
-		"fdebf323a66eabab47f7452c17899852b76bf9476262fa0bca38531a5406e1ad74"
-	payload_bytes, _ := hex.DecodeString(payload_hex)
-	wireshark_tcp_hex := "0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + payload_hex
+	payload_bytes, _ := hex.DecodeString(giant_payload)
+	wireshark_tcp_hex := "0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + giant_payload
 	var tcp TCPHeader = TCPHeader{
 		Src_port:    80,
 		Dst_port:    50871,
@@ -545,7 +413,7 @@ func Test_GetResponsePayload(t *testing.T) {
 		Ack_num:     2753994376,
 		Data_offset: 8,
 		Reserved:    0,
-		Flags:       []string{"ACK"},
+		Flags:       ACK,
 		Window:      235,
 		Checksum:    29098,
 		Urgent:      0,
@@ -606,7 +474,7 @@ func Test_GetResponsePayload(t *testing.T) {
 	got_body := string(body_bytes)
 
 	// Read the exp_body from partial_body.txt file
-	exp_body_bytes, err := os.ReadFile("partial_body.txt")
+	exp_body_bytes, err := os.ReadFile("./testdata/partial_body.txt")
 	if err != nil {
 		t.Errorf(Red(err.Error()))
 		return // File not found
@@ -623,7 +491,7 @@ func Test_GetResponsePayload(t *testing.T) {
 func Test_ConvertIP01(t *testing.T) {
 	ip := getIPHeaderFirstHandshake(t)
 	ip_bytes := ip.ToBytes()
-	ip2 := BytesToIP(ip_bytes)
+	ip2 := NewIPHeader(ip_bytes)
 	if compareIPHeaders(ip, ip2) == false {
 		t.Errorf(Red("1st handshake IP header conversion failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", ip, ip2)
@@ -633,7 +501,7 @@ func Test_ConvertIP01(t *testing.T) {
 func Test_ConvertIP02(t *testing.T) {
 	ip := getIPHeaderSecondHandshake(t)
 	ip_bytes := ip.ToBytes()
-	ip2 := BytesToIP(ip_bytes)
+	ip2 := NewIPHeader(ip_bytes)
 	if compareIPHeaders(ip, ip2) == false {
 		t.Errorf(Red("2nd handshake IP header conversion failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", ip, ip2)
@@ -644,7 +512,7 @@ func Test_ConvertTCP01(t *testing.T) {
 	ip := getIPHeaderFirstHandshake(t)
 	tcp := getTCPHeaderFirstHandshake(t)
 	tcp_bytes := tcp.ToBytes(ip)
-	tcp2 := BytesToTCP(tcp_bytes)
+	tcp2 := NewTCPHeader(tcp_bytes)
 	if compareTCPHeaders(tcp, tcp2) == false {
 		t.Errorf(Red("1st handshake TCP header conversion failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
@@ -655,7 +523,7 @@ func Test_ConvertTCP02(t *testing.T) {
 	ip := getIPHeaderSecondHandshake(t)
 	tcp := getTCPHeaderSecondHandshake(t)
 	tcp_bytes := tcp.ToBytes(ip)
-	tcp2 := BytesToTCP(tcp_bytes)
+	tcp2 := NewTCPHeader(tcp_bytes)
 	if compareTCPHeaders(tcp, tcp2) == false {
 		t.Errorf(Red("2nd handshake TCP header conversion failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
@@ -666,7 +534,7 @@ func Test_ConvertTCPWithPayload(t *testing.T) {
 	ip := getIPHeaderWithPayload(t)
 	tcp := getTCPHeaderWithPayload(t)
 	tcp_bytes := tcp.ToBytes(ip)
-	tcp2 := BytesToTCP(tcp_bytes)
+	tcp2 := NewTCPHeader(tcp_bytes)
 	if compareTCPHeaders(tcp, tcp2) == false {
 		t.Errorf(Red("TCP header conversion with payload failed"))
 		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
@@ -828,7 +696,7 @@ func Test_OddTCPSegmentLength(t *testing.T) { // Holy fuck this was difficult
 		Tos:         0x20,
 		Tot_len:     845,
 		Id:          21169,
-		Flags:       []string{"DF"},
+		Flags:       DF,
 		Frag_offset: 0,
 		Ttl:         38,
 		Protocol:    6,
@@ -847,7 +715,7 @@ func Test_OddTCPSegmentLength(t *testing.T) { // Holy fuck this was difficult
 		Ack_num:     1563085193,
 		Data_offset: 8,
 		Reserved:    0,
-		Flags:       []string{"ACK", "PSH"},
+		Flags:       ACK | PSH,
 		Window:      235,
 		Checksum:    47864,
 		Urgent:      0,
@@ -911,7 +779,7 @@ func compareIPHeaders(ip1 *IPHeader, ip2 *IPHeader) bool {
 	if ip1.Id != ip2.Id {
 		return false
 	}
-	if !pkg.Contains(ip1.Flags, ip2.Flags) {
+	if ip1.Flags != ip2.Flags {
 		return false
 	}
 	if ip1.Frag_offset != ip2.Frag_offset {
@@ -954,7 +822,7 @@ func compareTCPHeaders(tcp1 *TCPHeader, tcp2 *TCPHeader) bool {
 	if tcp1.Reserved != tcp2.Reserved {
 		return false
 	}
-	if !pkg.Contains(tcp1.Flags, tcp2.Flags) {
+	if tcp1.Flags != tcp2.Flags {
 		return false
 	}
 	if tcp1.Window != tcp2.Window {
@@ -971,9 +839,3 @@ func compareTCPHeaders(tcp1 *TCPHeader, tcp2 *TCPHeader) bool {
 	}
 	return true
 }
-
-// Developer message ********************************************************************
-
-// func Test_DeveloperMessage(t *testing.T) {
-// 	fmt.Println(Blue("Dev note: TCPFlags and IPFlags use unordered map, so a manual compare function was created."))
-// }

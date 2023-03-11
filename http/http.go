@@ -8,6 +8,8 @@ import (
 	"io"
 	"net/url"
 	"strconv"
+
+	"github.com/DennisPing/TCP-IP-Raw-Sockets/rawsocket"
 )
 
 type Response struct {
@@ -68,10 +70,10 @@ func Get(u *url.URL) (*Response, error) {
 		return nil, err
 	}
 	header := makeHeader(u, "GET")
-	err = conn.Send(header, []string{"ACK", "PSH"})
+	err = conn.Send(header, rawsocket.ACK)
 	if err != nil {
 		if err.Error() == "recv timeout" {
-			if err = conn.Send(header, []string{"ACK", "PSH"}); err != nil { // Try again
+			if err = conn.Send(header, rawsocket.ACK); err != nil { // Try again
 				return nil, errors.New("retry attempts exceeded")
 			}
 		} else {
@@ -82,7 +84,7 @@ func Get(u *url.URL) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	err = conn.CloseSockets()
+	conn.CloseSockets()
 	if err != nil {
 		return nil, err
 	}

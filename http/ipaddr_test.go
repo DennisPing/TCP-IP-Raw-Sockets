@@ -1,4 +1,4 @@
-package pkg
+package http
 
 import (
 	"net"
@@ -7,65 +7,14 @@ import (
 	"testing"
 )
 
-// Test Contains function
-func TestContains(t *testing.T) {
-	type test struct {
-		big    []string
-		small  []string
-		expect bool
-	}
-	tests := []test{
-		{
-			big:    []string{"SYN", "ACK", "FIN"},
-			small:  []string{"SYN", "ACK", "FIN"},
-			expect: true,
-		},
-		{
-			big:    []string{"SYN", "ACK", "FIN"},
-			small:  []string{"ACK"},
-			expect: true,
-		},
-		{
-			big:    []string{"ACK"},
-			small:  []string{"ACK"},
-			expect: true,
-		},
-		{
-			big:    []string{"SYN", "ACK", "FIN"},
-			small:  []string{"SYN", "ACK", "FIN", "PSH"},
-			expect: false,
-		},
-		{
-			big:    []string{"SYN", "ACK", "PSH"},
-			small:  []string{"RST"},
-			expect: false,
-		},
-		{
-			big:    []string{"SYN", "ACK", "PSH"},
-			small:  []string{""},
-			expect: false,
-		},
-		{
-			big:    []string{"SYN", "ACK", "PSH"},
-			small:  []string{},
-			expect: false,
-		},
-	}
-	for i, tc := range tests {
-		got := Contains(tc.big, tc.small)
-		if got != tc.expect {
-			t.Errorf("test %d: Expect %v, but Contains(%v, %v) = %v", i+1, tc.expect, tc.big, tc.small, got)
-		}
-	}
-}
-
 func TestLookupLocalIP(t *testing.T) {
 	// Run exec "hostname -I" and capture the output
 	output, err := exec.Command("hostname", "-I").Output()
 	if err != nil {
 		t.Errorf("unable to find my IP via shell: %v", err)
 	}
-	expect := net.ParseIP(strings.TrimSuffix(string(output), " \n"))
+	firstWord := strings.Split(string(output), " ")[0]
+	expect := net.ParseIP(strings.TrimSuffix(firstWord, " \n"))
 	local_ip, _ := LookupLocalIP()
 	if !expect.Equal(local_ip) {
 		t.Errorf("Expect %v, but FindMyIP() = %v", expect, local_ip)

@@ -3,16 +3,13 @@
 
 # TCP/IP Raw Sockets
 
-Matthew Jones  
-Dennis Ping  
-
 ## Overview
 
 **TL;DR - Make an HTTP GET request from scratch; from the network layer to the application layer.**
 
 This project was originally done in Python and converted to Go for self-learning purposes.
 
-This program called `rawhttpget` takes one URL, downloads the target URL page, and saves it into the current directory. The TCP/IP network stack are custom implemented, and all incoming & outgoing data packets utilize raw sockets. Due to the low-level details and bitwise operations of this project, unit testing was done to ensure correctness. Manual debugging was also done on Wireshark.
+This program called `rawhttpget` takes one URL, downloads the target URL page, and saves it into the current directory. The TCP/IP network stack is custom implemented, and all incoming & outgoing data packets utilize raw sockets. Due to the low-level details and bitwise operations of this project, unit testing was done to ensure correctness. Manual debugging was also done on Wireshark.
 
 ## Requirements
 
@@ -58,7 +55,7 @@ Options:
 
 The optional flag `-v` is for verbose output.
 
-Examples
+**Examples**
 
 ```
 sudo ./rawhttpget -v http://david.choffnes.com/classes/cs4700sp22/project4.php
@@ -67,22 +64,21 @@ sudo ./rawhttpget http://david.choffnes.com/classes/cs4700sp22/10MB.log
 
 ## Testing
 
-Standard mode
+**Standard mode**
 ```
 go test ./...
 ```
-Verbose mode
+
+**Verbose mode**
 ```
 go test -v ./...
 ```
 
-Test coverage
+**Show test coverage**
 ```
 go test ./... -coverprofile=coverage.out
 go tool cover -html=coverage.out
 ```
-
-This will show a GUI in your browser window :heart_eyes:
 
 ## Example Run in Verbose Mode
 
@@ -146,8 +142,6 @@ Wrote 22636 bytes to project4.php
 | 10MB.log     | 10.0      | 13.0                |
 | 50MB.log     | 50.0      | 62.0                |
 
-Why so slow? This basic implementation is synchronous (aka. blocking) while the real implementation is asynchronous.
-
 ## Design Details
 
 - All the details about wrapping and unwrapping of packets have been abstracted away into 2 functions in the `rawsocket` package:
@@ -156,15 +150,6 @@ Why so slow? This basic implementation is synchronous (aka. blocking) while the 
 - When a packet is unwrapped, the TCP and IP checksums are automatically checked. If there is an error, it will return the error back to the client to handle. Likewise, when a packet is wrapped, its checksum is automatically calculated into the packet.
 - The `http` package loosely mimics the Go std lib `net/conn` and `net/http`.
 - If a packet we sent out has not been ACK'd within 1 minute, the packet is assumed to be lost, so we retransmit it. This almost never happens since we only send out 1 packet that needs to get ACK'd.
-
-## CPU and Memory Profiling
-
-Profiling of the CPU and memory was done for benchmarking insights. [See guide here](https://flaviocopes.com/golang-profiling/).
-
-Example
-```
-go tool pprof --pdf ./rawhttpget ./path/file.pprof > ./path/file.pdf
-```
 
 ## Random Notes
 

@@ -2,7 +2,59 @@ package rawsocket
 
 import (
 	"encoding/binary"
+	"strings"
 )
+
+type TCPFlags uint8
+
+const (
+	// Bit positions [CWR, ECE, URG, ACK, PSH, RST, SYN, FIN]
+	CWR TCPFlags = 1 << 7
+	ECE TCPFlags = 1 << 6
+	URG TCPFlags = 1 << 5
+	ACK TCPFlags = 1 << 4
+	PSH TCPFlags = 1 << 3
+	RST TCPFlags = 1 << 2
+	SYN TCPFlags = 1 << 1
+	FIN TCPFlags = 1 << 0
+)
+
+var tcpFlagsNames = []string{
+	"FIN",
+	"SYN",
+	"RST",
+	"PSH",
+	"ACK",
+	"URG",
+	"ECE",
+	"CWR",
+}
+
+var tcpFlagsMap = make(map[TCPFlags]string)
+
+// Use the binary representation of the flags to generate a string representation
+func init() {
+	for i := 0; i < 256; i++ {
+		var flags TCPFlags
+		for j := 0; j < 8; j++ {
+			if i&(1<<uint(j)) != 0 {
+				flags |= 1 << uint(j)
+			}
+		}
+		var names []string
+		for j, name := range tcpFlagsNames {
+			if flags&(1<<uint(j)) != 0 {
+				names = append(names, name)
+			}
+		}
+		tcpFlagsMap[flags] = strings.Join(names, " ")
+	}
+}
+
+// Only used for debugging and verbose output
+func (f TCPFlags) String() string {
+	return tcpFlagsMap[f]
+}
 
 // TCP Header size is between 20 to 60 bytes
 // https://en.wikipedia.org/wiki/Transmission_Control_Protocol
@@ -11,46 +63,14 @@ type TCPHeader struct {
 	Dst_port    uint16
 	Seq_num     uint32
 	Ack_num     uint32
-	Data_offset uint8    // 4 bits, part of uint16
-	Reserved    uint8    // 3 bits, part of uint16
-	Flags       []string // 9 bits, part of uint16
+	Data_offset uint8 // 4 bits, part of uint8
+	Reserved    uint8 // 4 bits of 0's, part of uint8
+	Flags       TCPFlags
 	Window      uint16
 	Checksum    uint16
 	Urgent      uint16
 	Options     []byte
 	Payload     []byte
-}
-
-var TCPFlags = map[string]int{
-	// The value represents the bit position in the uint16
-	"NS":  8,
-	"CWR": 7,
-	"ECE": 6,
-	"URG": 5,
-	"ACK": 4,
-	"PSH": 3,
-	"RST": 2,
-	"SYN": 1,
-	"FIN": 0,
-}
-
-func bitshiftTCPFlags(flags []string) uint16 {
-	var combo uint16
-	for _, flag := range flags {
-		combo |= uint16(1 << TCPFlags[flag])
-	}
-	return combo
-}
-
-func unbitshiftTCPFlags(bitflags uint16) []string {
-	// Bits look like [0,0,0,0,0,0,0,NS,CWR,ECE,URG,ACK,PSH,RST,SYN,FIN]
-	var flags []string
-	for flag, shift := range TCPFlags {
-		if bitflags&(1<<shift) != 0 {
-			flags = append(flags, flag)
-		}
-	}
-	return flags
 }
 
 // Convert a TCP header into a byte array
@@ -60,8 +80,8 @@ func (tcp *TCPHeader) ToBytes(ip *IPHeader) []byte {
 	binary.BigEndian.PutUint16(buf[2:4], tcp.Dst_port)
 	binary.BigEndian.PutUint32(buf[4:8], tcp.Seq_num)
 	binary.BigEndian.PutUint32(buf[8:12], tcp.Ack_num)
-	var combo uint16 = uint16(tcp.Data_offset)<<12 | uint16(tcp.Reserved)<<9 | bitshiftTCPFlags(tcp.Flags)
-	binary.BigEndian.PutUint16(buf[12:14], combo)
+	buf[12] = tcp.Data_offset<<4 | tcp.Reserved
+	buf[13] = byte(tcp.Flags)
 	binary.BigEndian.PutUint16(buf[14:16], tcp.Window)
 	binary.BigEndian.PutUint16(buf[16:18], uint16(0)) // Checksum
 	binary.BigEndian.PutUint16(buf[18:20], tcp.Urgent)
@@ -79,19 +99,15 @@ func (tcp *TCPHeader) ToBytes(ip *IPHeader) []byte {
 }
 
 // Convert a byte array into a TCP header
-func BytesToTCP(data []byte) *TCPHeader {
+func NewTCPHeader(data []byte) *TCPHeader {
 	tcp := new(TCPHeader)
 	tcp.Src_port = binary.BigEndian.Uint16(data[0:2])
 	tcp.Dst_port = binary.BigEndian.Uint16(data[2:4])
 	tcp.Seq_num = binary.BigEndian.Uint32(data[4:8])
 	tcp.Ack_num = binary.BigEndian.Uint32(data[8:12])
-	// Read the 4 bit Data_offset + 3 bit Reserved + 9 bit flags as one uint16 (2 bytes)
-	var combo uint16 = binary.BigEndian.Uint16(data[12:14])
-	// Get the first 4 bits of the combo
-	tcp.Data_offset = uint8(combo >> 12)
-	// Get the next 3 bits
-	tcp.Reserved = uint8(combo>>9) & 0x7
-	tcp.Flags = unbitshiftTCPFlags(combo)
+	tcp.Data_offset = data[12] >> 4
+	tcp.Reserved = data[12] & 0x0f
+	tcp.Flags = TCPFlags(data[13])
 	tcp.Window = binary.BigEndian.Uint16(data[14:16])
 	tcp.Checksum = binary.BigEndian.Uint16(data[16:18])
 	tcp.Urgent = binary.BigEndian.Uint16(data[18:20])
@@ -115,10 +131,9 @@ func TCPChecksum(tcp_bytes []byte, ip *IPHeader) uint16 {
 	copy(pseudo_header[8:10], []byte{0, 6})                                             // Fixed 0 and protocol number 6
 	copy(pseudo_header[10:12], []byte{byte(tcp_seg_length >> 8), byte(tcp_seg_length)}) // TCP segment length
 
-	// data := make([]byte, 0)
-	data := make([]byte, 0, 12+int(tcp_seg_length))
-	data = append(data, pseudo_header...)
-	data = append(data, tcp_bytes...)
+	data := make([]byte, 12+int(tcp_seg_length))
+	copy(data[0:12], pseudo_header)
+	copy(data[12:], tcp_bytes)
 
 	// This shit is too hard
 	var sum uint32
