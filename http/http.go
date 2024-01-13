@@ -56,7 +56,7 @@ func NewResponse(url string, data []byte) *Response {
 	}
 }
 
-// Send a GET request and return a Response.
+// Get makes a GET request and return a Response.
 func Get(u *url.URL) (*Response, error) {
 	if u.Scheme != "http" {
 		return nil, errors.New("only HTTP is supported")
@@ -65,6 +65,13 @@ func Get(u *url.URL) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer func(conn *Conn) {
+		err := conn.Close()
+		if err != nil {
+			err = fmt.Errorf("error closing sockets: %w\n", err)
+		}
+	}(conn)
+
 	err = conn.Connect()
 	if err != nil {
 		return nil, err
@@ -84,7 +91,7 @@ func Get(u *url.URL) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	conn.CloseSockets()
+
 	if err != nil {
 		return nil, err
 	}
