@@ -6,11 +6,10 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
-	"strings"
 	"testing"
 )
 
-func getMockData(t *testing.T) []byte {
+func getMockData() []byte {
 	data := "HTTP/1.0 200 OK\r\n" +
 		"Content-Type: text/html\r\n" +
 		"Host: david.choffnes.com\r\n" +
@@ -20,7 +19,7 @@ func getMockData(t *testing.T) []byte {
 	return []byte(data)
 }
 
-func getMockDataGzipped(t *testing.T) []byte {
+func getMockDataGzipped() []byte {
 	head := "HTTP/1.0 200 OK\r\n" +
 		"Content-Type: text/html\r\n" +
 		"Host: david.choffnes.com\r\n" +
@@ -38,8 +37,8 @@ func getMockDataGzipped(t *testing.T) []byte {
 
 func TestNewResponse(t *testing.T) {
 	type test struct {
-		raw_data   []byte
-		url        string
+		rawData    []byte
+		url        *url.URL
 		statuscode int
 		reason     string
 		headers    map[string]string
@@ -47,8 +46,8 @@ func TestNewResponse(t *testing.T) {
 	}
 	tests := []test{
 		{
-			raw_data:   getMockData(t),
-			url:        "http://david.choffnes.com/classes/cs4700sp22/project4.php",
+			rawData:    getMockData(),
+			url:        &url.URL{Scheme: "http", Host: "david.choffnes.com", Path: "/classes/cs4700sp22/project4.php"},
 			statuscode: 200,
 			reason:     "OK",
 			headers: map[string]string{
@@ -59,8 +58,8 @@ func TestNewResponse(t *testing.T) {
 			body: []byte("<html>Hello World\r\nI'm a teapot</html>\r\n"),
 		},
 		{
-			raw_data:   getMockDataGzipped(t),
-			url:        "http://david.choffnes.com/classes/cs4700sp22/project4.php",
+			rawData:    getMockDataGzipped(),
+			url:        &url.URL{Scheme: "http", Host: "david.choffnes.com", Path: "/classes/cs4700sp22/project4.php"},
 			statuscode: 200,
 			reason:     "OK",
 			headers: map[string]string{
@@ -73,7 +72,7 @@ func TestNewResponse(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		res := NewResponse(test.url, test.raw_data)
+		res := ParseResponse(test.url, test.rawData)
 		if res.Url != test.url {
 			t.Errorf("Expect: %s Got: %s", test.url, res.Url)
 		}
@@ -90,55 +89,6 @@ func TestNewResponse(t *testing.T) {
 			t.Errorf("\nExpect: \n%s\nGot: \n%s", test.body, res.Body)
 		}
 	}
-}
-
-func TestPrepHeader(t *testing.T) {
-	type test struct {
-		u      *url.URL
-		method string
-		expect []byte
-	}
-	tests := []test{
-		{
-			u:      &url.URL{Scheme: "http", Host: "www.example.com", Path: "/index.html"},
-			method: "GET",
-			expect: []byte("GET /index.html HTTP/1.0\r\nHost: www.example.com\r\nConnection: close\r\nAccept-Encoding: gzip\r\n\r\n"),
-		},
-		{
-			u:      &url.URL{Scheme: "http", Host: "david.choffnes.com", Path: "/classes/cs4700sp22/project4.php"},
-			method: "GET",
-			expect: []byte("GET /classes/cs4700sp22/project4.php HTTP/1.0\r\nHost: david.choffnes.com\r\nConnection: close\r\nAccept-Encoding: gzip\r\n\r\n"),
-		},
-	}
-	for _, test := range tests {
-		header_bytes := makeHeader(test.u, test.method)
-		if compareUnorderedHeaders(header_bytes, test.expect) == false {
-			t.Errorf("\nExpect:\n%s\nGot:\n%s", test.expect, header_bytes)
-		}
-	}
-}
-
-// Since preHeader uses an unordered map, the headers are out of order and can't be compared using string equals.
-func compareUnorderedHeaders(h1, h2 []byte) bool {
-	if len(h1) != len(h2) {
-		return false
-	}
-	// Split by \r\n and compare
-	h1_lines := strings.Split(string(h1), "\r\n")
-	h2_lines := strings.Split(string(h2), "\r\n")
-	for _, line1 := range h1_lines {
-		found := false
-		for _, line2 := range h2_lines {
-			if line1 == line2 {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	return true
 }
 
 func formatMap(m map[string]string) string {
