@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
-	"net"
 	"os"
 	"syscall"
 	"text/tabwriter"
@@ -14,309 +13,265 @@ import (
 	"github.com/DennisPing/TCP-IP-Raw-Sockets/rawsocket"
 )
 
-// Conn is a custom net conn which uses os.File to read and write data streams
+// Conn is a custom network connection that uses raw sockets
 type Conn struct {
-	hostname   string
-	localIp    [4]byte
-	localPort  uint16
-	remoteIp   [4]byte
-	remotePort uint16
-	seqNum     uint32 // random starting number
-	ackNum     uint32
-	advWindow  uint16 // advertised window
-	mss        uint32 // max segment size
-	sendFile   *os.File
-	recvFile   *os.File
-	sendConn   net.Conn
-	recvConn   net.Conn
+	hostname      string
+	localIp       [4]byte
+	localPort     uint16
+	remoteIp      [4]byte
+	remotePort    uint16
+	localAddr     syscall.SockaddrInet4 // For syscall convenience
+	remoteAddr    syscall.SockaddrInet4 // For syscall convenience
+	advWindow     uint16                // Advertised window
+	mss           uint16                // Max segment size
+	wScale        uint8                 // Window scale
+	sendFd        int
+	recvFd        int
+	initialSeqNum uint32 // The initial seqNum after Connect(). Only used once.
+	initialAckNum uint32 // The initial seqNum after Connect(). Only used once.
 }
-
-// PayloadTuple is essentially a node in a linked list.
-type PayloadTuple struct {
-	payload []byte // tcp payload
-	next    uint32 // the next seq_num (usually increments by 1460 bytes)
-}
-
-// PayloadMap is essentially a linked list with O(1) lookup anywhere. Key: seq_num, Value: PayloadTuple.
-type PayloadMap map[uint32]PayloadTuple
 
 // Verbose formatter
 var tw *tabwriter.Writer = tabwriter.NewWriter(os.Stdout, 24, 8, 1, '\t', 0)
 
 // NewConn Make a new Conn struct that holds stateful information.
-func NewConn(hostname string) (*Conn, error) {
+func NewConn(hostname string, timeout time.Duration) (*Conn, error) {
 	// Set up remote IP address
-	remoteIp, err := LookupRemoteIP(hostname)
+	remoteIP, err := getRemoteIP(hostname)
 	if err != nil {
 		return nil, err
 	}
-	remoteIpBytes := [4]byte{}
-	for i, b := range remoteIp.To4() {
-		remoteIpBytes[i] = b
-	}
-	if config.Verbose {
-		fmt.Printf("Remote IP: %s\n", remoteIp)
-	}
+	printDebugf(fmt.Sprintf("Remote IP: %d.%d.%d.%d\n", remoteIP[0], remoteIP[1], remoteIP[2], remoteIP[3]))
 
 	// Set up local IP address
-	localIp, err := LookupLocalIP()
+	localIP, err := getLocalIP()
 	if err != nil {
 		return nil, err
 	}
-	localIpBytes := [4]byte{}
-	for i, b := range localIp.To4() {
-		localIpBytes[i] = b
-	}
-	if config.Verbose {
-		fmt.Printf("Local IP: %s\n", localIp)
-	}
+	printDebugf(fmt.Sprintf("Local IP: %d.%d.%d.%d\n", localIP[0], localIP[1], localIP[2], localIP[3]))
 
-	// Choose a random local port
-	rng := rand.New(rand.NewSource(time.Now().UnixNano()))
-	randomPort := uint16(rng.Intn(65535-49152) + 49152) // random port between 49152 and 65535
+	// Choose a random local port between 49152 and 65535
+	randomPort := uint16(rand.Intn(65535-49251) + 49152)
 
 	// Set up raw sockets
 	sendFd, err := rawsocket.InitSendSocket()
 	if err != nil {
 		return nil, err
 	}
+
 	recvFd, err := rawsocket.InitRecvSocket()
 	if err != nil {
 		return nil, err
 	}
 
-	sendFile := os.NewFile(uintptr(sendFd), "send-raw-socket")
-	recvFile := os.NewFile(uintptr(recvFd), "recv-raw-socket")
+	err = rawsocket.SetTimeout(recvFd, timeout)
+	if err != nil {
+		return nil, err
+	}
 
-	return &Conn{
+	conn := &Conn{
 		hostname:   hostname,
-		localIp:    localIpBytes,
+		localIp:    localIP,
 		localPort:  randomPort,
-		remoteIp:   remoteIpBytes,
+		remoteIp:   remoteIP,
 		remotePort: 80,
-		seqNum:     rng.Uint32(),
-		ackNum:     0,
+		localAddr:  syscall.SockaddrInet4{Port: int(randomPort), Addr: localIP},
+		remoteAddr: syscall.SockaddrInet4{Port: 80, Addr: remoteIP},
 		advWindow:  65535,
 		mss:        1460,
-		sendFile:   sendFile,
-		recvFile:   recvFile,
-	}, nil
-}
-
-// NewOption Return an 32-bit option byte slice. Only supports mss and window scale.
-func (c *Conn) NewOption(kind string, value int) []byte {
-	switch kind {
-	case "mss": // uint32
-		return []byte{0x02, 0x04, byte(value >> 8), byte(value & 0xff)}
-	case "wscale": // uint16
-		return []byte{0x01, 0x03, 0x03, byte(value)} // NOP (0x01) is built in for convenience sake.
-	default:
-		panic(fmt.Sprintf("Unsupported TCP option: %s", kind))
+		wScale:     3,
+		sendFd:     sendFd,
+		recvFd:     recvFd,
 	}
+
+	err = conn.Connect()
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
 }
 
 // Connect to the remote host via the 3 way handshake.
 func (c *Conn) Connect() error {
-	opts := c.NewOption("mss", int(c.mss))
-	if err := c.SendTo(nil, opts, rawsocket.SYN); err != nil {
+	seqNum := rand.Uint32()
+	ackNum := uint32(0)
+
+	err := c.send(seqNum, ackNum, nil, rawsocket.SYN, WithMSS(c.mss), WithWScale(c.wScale))
+	if err != nil {
 		return fmt.Errorf("1st handshake failed: %w", err)
 	}
-	if _, err := c.RecvFrom(c.remoteIp); err != nil {
+
+	tcp, err := c.recv()
+	if err != nil {
 		return fmt.Errorf("2nd handshake failed: %w", err)
 	}
-	if err := c.SendTo(nil, nil, rawsocket.ACK); err != nil {
+
+	seqNum, ackNum = getNextNumbers(tcp)
+	err = c.send(seqNum, ackNum, nil, rawsocket.ACK)
+	if err != nil {
 		return fmt.Errorf("3rd handshake failed: %w", err)
 	}
 
-	// Establish the recv and send connections
-	recvConn, err := net.FileConn(c.recvFile)
+	c.initialSeqNum = seqNum
+	c.initialAckNum = ackNum
+	return nil
+}
+
+// SendRequest sends the request to the remote host.
+func (c *Conn) SendRequest(req *Request) error {
+	err := c.send(c.initialSeqNum, c.initialAckNum, req.ToBytes(), rawsocket.ACK)
 	if err != nil {
 		return err
 	}
-	c.recvConn = recvConn
 
-	sendConn, err := net.FileConn(c.sendFile)
+	_, err = c.recv() // The ACK from the request
 	if err != nil {
 		return err
 	}
-	c.sendConn = sendConn
+
 	return nil
 }
 
-// Send a packet with the payload and flags. Used 99% of the time.
-func (c *Conn) Send(payload []byte, tcpFlags rawsocket.TCPFlags) error {
-	packet := c.makePacket(payload, []byte{}, tcpFlags)
-	_, err := c.sendConn.Write(packet)
-	if err != nil {
-		return errors.New("error sending packet: " + err.Error())
-	}
-	printDebug(1, len(packet), tcpFlags, c.seqNum, c.ackNum)
-	return nil
-}
+// RecvResponse receives all data from the GET request and return the raw payload.
+func (c *Conn) RecvResponse() ([]byte, error) {
+	var nextSeqNum, nextAckNum uint32
+	ll := NewDoublyLinkedList() // The linked list to store incoming payloads
 
-// SendTo sends a packet with payload, options, and flags. Only used during the 3 way handshake.
-func (c *Conn) SendTo(payload, tcpOptions []byte, tcpFlags rawsocket.TCPFlags) error {
-	packet := c.makePacket(payload, tcpOptions, tcpFlags)
-
-	remoteAddr := syscall.SockaddrInet4{
-		Port: int(c.remotePort),
-		Addr: c.remoteIp,
-	}
-
-	sendFd := c.sendFile.Fd()
-	if err := syscall.Sendto(int(sendFd), packet, 0, &remoteAddr); err != nil {
-		return fmt.Errorf("error syscall.Sendto: %w", err)
-	}
-	printDebug(1, len(packet), tcpFlags, c.seqNum, c.ackNum)
-	return nil
-}
-
-// RecvAll receives all data from the GET request and return the raw payload.
-func (c *Conn) RecvAll() ([]byte, error) {
-	// 1. Receive the last ACK from the handshake
-	tcp, _, err := c.Recv()
-	if err != nil {
-		return nil, err
-	}
-	startSeq := tcp.SeqNum // Hold the 1st seqNum in the linked list
-
-	// Now receive all the incoming packets of the GET response
-	payloadMap := make(PayloadMap)
-	totalLen := 0
 	for {
-		tcp, done, err := c.Recv()
+		tcp, err := c.recv()
 		if err != nil {
 			return nil, err
 		}
-		totalLen += len(tcp.Payload)
-		payloadMap[tcp.SeqNum] = PayloadTuple{payload: tcp.Payload, next: c.ackNum}
-		if !done { // Send ACK and continue receiving
-			err = c.Send(nil, rawsocket.ACK)
-			if err != nil {
-				return nil, err
-			}
-		} else {
-			err = c.disconnect()
-			if err != nil {
-				return nil, err
-			}
-			break
+
+		nextSeqNum, nextAckNum = getNextNumbers(tcp)
+
+		newNode := &Node{
+			seqNum:  tcp.SeqNum,
+			payload: tcp.Payload,
+		}
+
+		ll.InsertNode(newNode)
+
+		if tcp.Flags&rawsocket.FIN == rawsocket.FIN {
+			break // Done
+		}
+
+		err = c.send(nextSeqNum, nextAckNum, nil, rawsocket.ACK)
+		if err != nil {
+			return nil, err
 		}
 	}
-	rawResponse := c.mergePayloads(payloadMap, startSeq, totalLen)
-	return *rawResponse, nil
+
+	err := c.disconnect(nextSeqNum, nextAckNum)
+	if err != nil {
+		return nil, err
+	}
+
+	// Convert the linked list to a byte array
+	return ll.ToBytes(), nil
 }
 
-// RecvFrom receives an incoming packet and updates ackNum and seqNum. Only used during the 3 way handshake.
-func (c *Conn) RecvFrom(remoteIp [4]byte) (tcp *rawsocket.TCPHeader, err error) {
-	timeout := time.Now().Add(time.Second * 10)
-	buf := make([]byte, 2048)
-	recvFd := c.recvFile.Fd()
+// Send a payload with seq number, ack number, payload, TCP flags, and tcpOptions.
+func (c *Conn) send(seqNum uint32, ackNum uint32, payload []byte, tcpFlags rawsocket.TCPFlags, opts ...TCPOptions) error {
+	var tcpOptions []byte
+	for _, opt := range opts {
+		opt(&tcpOptions)
+	}
 
-	for time.Now().Before(timeout) {
-		n, from, err := syscall.Recvfrom(int(recvFd), buf, 0)
-		if err != nil {
+	packet := c.makePacket(seqNum, ackNum, payload, tcpFlags, tcpOptions)
+
+	err := syscall.Sendto(c.sendFd, packet, 0, &c.remoteAddr)
+	if err != nil {
+		return errors.New("error sending packet: " + err.Error())
+	}
+
+	printDebugIO(1, len(packet), tcpFlags, seqNum, ackNum)
+	return nil
+}
+
+// Receive a single packet from the recv socket.
+func (c *Conn) recv() (tcp *rawsocket.TCPHeader, err error) {
+	buf := make([]byte, 2048)
+
+	for {
+		n, from, err := syscall.Recvfrom(c.recvFd, buf, 0)
+		switch {
+		case errors.Is(err, syscall.EINTR):
+			continue // Try again: https://manpages.ubuntu.com/manpages/noble/en/man7/signal.7.html
+
+		case errors.Is(err, syscall.EAGAIN) || errors.Is(err, syscall.EWOULDBLOCK):
+			return nil, fmt.Errorf("timeout reached: %w", err)
+
+		case err != nil:
 			return nil, fmt.Errorf("error syscall.Recvfrom: %w", err)
 		}
-		if from.(*syscall.SockaddrInet4).Addr == remoteIp {
-			_, tcp, err := rawsocket.Unwrap(buf[:n])
-			if err != nil {
-				return nil, err
-			}
 
-			printDebug(0, n, tcp.Flags, tcp.SeqNum, tcp.AckNum)
-
-			if (tcp.Flags & rawsocket.SYN) == rawsocket.SYN {
-				c.seqNum = tcp.AckNum
-				c.ackNum = tcp.SeqNum + uint32(len(tcp.Payload)) + 1
-				return tcp, nil
-			} else if (tcp.Flags & rawsocket.ACK) == rawsocket.ACK {
-				c.seqNum = tcp.AckNum
-				c.ackNum = tcp.SeqNum + uint32(len(tcp.Payload))
-				return tcp, nil
-			} else {
-				return nil, errors.New("unexpected flags: " + fmt.Sprintf("%v\n", tcp.Flags))
-			}
-		}
-	}
-	return nil, errors.New("recvFrom timeout")
-}
-
-// Recv receives the next incoming packet and updates ackNum and seqNum.
-func (c *Conn) Recv() (tcp *rawsocket.TCPHeader, done bool, err error) {
-	timeout := time.Now().Add(time.Second * 10)
-	buf := make([]byte, 2048)
-
-	for time.Now().Before(timeout) {
-		n, err := c.recvConn.Read(buf)
-		if err != nil {
-			return nil, false, fmt.Errorf("error recvConn.Read: %w", err)
+		if from.(*syscall.SockaddrInet4).Addr != c.remoteIp {
+			continue
 		}
 
 		_, tcp, err := rawsocket.Unwrap(buf[:n])
 		if err != nil {
-			return nil, false, err
+			return nil, err
 		}
 
-		printDebug(0, n, tcp.Flags, tcp.SeqNum, tcp.AckNum)
-
-		if (tcp.Flags&rawsocket.FIN) == rawsocket.FIN || (tcp.Flags&rawsocket.SYN) == rawsocket.SYN {
-			c.seqNum = tcp.AckNum
-			c.ackNum = tcp.SeqNum + uint32(len(tcp.Payload)) + 1
-			return tcp, true, nil
-		} else if (tcp.Flags & rawsocket.ACK) == rawsocket.ACK {
-			c.seqNum = tcp.AckNum
-			c.ackNum = tcp.SeqNum + uint32(len(tcp.Payload))
-			return tcp, false, nil
-		} else {
-			return nil, false, errors.New("unexpected flags: " + fmt.Sprintf("%v\n", tcp.Flags))
-		}
-
+		printDebugIO(0, n, tcp.Flags, tcp.SeqNum, tcp.AckNum)
+		return tcp, nil
 	}
-	return nil, false, errors.New("recv timeout")
 }
 
-// Close closes the underlying file descriptors
+// Close closes the underlying file descriptors.
 func (c *Conn) Close() error {
-	if err := c.sendFile.Close(); err != nil {
+	err := syscall.Close(c.sendFd)
+	if err != nil {
 		return err
 	}
-	if err := c.recvFile.Close(); err != nil {
+
+	err = syscall.Close(c.recvFd)
+	if err != nil {
 		return err
 	}
+
 	return nil
 }
 
 // Send the "FIN, ACK" to disconnect from the server.
-func (c *Conn) disconnect() error {
-	// Since we do use "close" instead of "keep-alive", the server will send us a "FIN, ACK" when it's done.
-	if err := c.Send(nil, rawsocket.FIN|rawsocket.ACK); err != nil {
+func (c *Conn) disconnect(seqNum, ackNum uint32) error {
+	err := c.send(seqNum, ackNum, nil, rawsocket.FIN|rawsocket.ACK)
+	if err != nil {
 		return fmt.Errorf("error sending FIN, ACK: %w", err)
 	}
-	if _, _, err := c.Recv(); err != nil {
+
+	_, err = c.recv()
+	if err != nil {
 		return fmt.Errorf("error receiving final ACK: %w", err)
 	}
 	return nil
 }
 
-// Merge the payloads in the payload_map into a single byte array
-func (c *Conn) mergePayloads(payloadMap PayloadMap, startSeq uint32, totalLen int) *[]byte {
-	merged := make([]byte, 0, totalLen)
-	next := startSeq
-	for {
-		if tuple, ok := payloadMap[next]; ok {
-			merged = append(merged, tuple.payload...)
-			next = tuple.next
-		} else {
-			break
-		}
+// Get the next sequence number and ack number based on the TCP flags.
+func getNextNumbers(tcp *rawsocket.TCPHeader) (nextSeqNum, nextAckNum uint32) {
+	switch {
+	case tcp.Flags&(rawsocket.SYN|rawsocket.ACK) == (rawsocket.SYN | rawsocket.ACK):
+		nextSeqNum = tcp.AckNum
+		nextAckNum = tcp.SeqNum + 1
+	case tcp.Flags&rawsocket.SYN == rawsocket.SYN:
+		nextSeqNum = tcp.AckNum
+		nextAckNum = tcp.SeqNum + 1
+	case tcp.Flags&rawsocket.FIN == rawsocket.FIN:
+		nextSeqNum = tcp.AckNum
+		nextAckNum = tcp.SeqNum + uint32(len(tcp.Payload)) + 1
+	case tcp.Flags&rawsocket.ACK == rawsocket.ACK:
+		nextSeqNum = tcp.AckNum
+		nextAckNum = tcp.SeqNum + uint32(len(tcp.Payload))
 	}
-	return &merged
+
+	return nextSeqNum, nextAckNum
 }
 
-// Make a packet with a given payload, tcp_options, and tcp_flags.
-// Tcp_options should be an empty []byte{} unless you want to set the MSS during SYN.
-func (c *Conn) makePacket(payload []byte, tcpOptions []byte, tcpFlags rawsocket.TCPFlags) []byte {
+// Make a packet with a seq num, ack num, payload, tcp flags, and tcp options.
+func (c *Conn) makePacket(seqNum, ackNum uint32, payload []byte, tcpFlags rawsocket.TCPFlags, tcpOptions []byte) []byte {
 	ip := rawsocket.IPHeader{
 		Version:    4,
 		Ihl:        5,
@@ -335,8 +290,8 @@ func (c *Conn) makePacket(payload []byte, tcpOptions []byte, tcpFlags rawsocket.
 	tcp := rawsocket.TCPHeader{
 		SrcPort:    c.localPort,
 		DstPort:    c.remotePort,
-		SeqNum:     c.seqNum,
-		AckNum:     c.ackNum,
+		SeqNum:     seqNum,
+		AckNum:     ackNum,
 		DataOffset: dataOffset,
 		Reserved:   0,
 		Flags:      tcpFlags,
@@ -349,15 +304,48 @@ func (c *Conn) makePacket(payload []byte, tcpOptions []byte, tcpFlags rawsocket.
 	return rawsocket.Wrap(&ip, &tcp)
 }
 
-// printDebug prints the network actions of Conn if verbose is true
-func printDebug(dir int, len int, tcpFlags rawsocket.TCPFlags, seqNum uint32, ackNum uint32) {
+// Get Remote IP as a literal 4 byte array.
+func getRemoteIP(hostname string) ([4]byte, error) {
+	remoteIp, err := LookupRemoteIP(hostname)
+	if err != nil {
+		return [4]byte{}, err
+	}
+	remoteIpBytes := [4]byte{}
+	for i, b := range remoteIp.To4() {
+		remoteIpBytes[i] = b
+	}
+	return remoteIpBytes, nil
+}
+
+// Get Local IP as a literal 4 byte array.
+func getLocalIP() ([4]byte, error) {
+	localIp, err := LookupLocalIP()
+	if err != nil {
+		return [4]byte{}, err
+	}
+	localIpBytes := [4]byte{}
+	for i, b := range localIp.To4() {
+		localIpBytes[i] = b
+	}
+	return localIpBytes, nil
+}
+
+// print the network I/O if verbose is true.
+func printDebugIO(dir int, len int, tcpFlags rawsocket.TCPFlags, seqNum uint32, ackNum uint32) {
 	if config.Verbose {
 		switch dir {
 		case 0:
-			_, _ = fmt.Fprintf(tw, "<-- Recv %d bytes\tFlags: %v\tseq: %d, ack: %d\n\n", len, tcpFlags, seqNum, ackNum)
+			_, _ = fmt.Fprintf(tw, "<-- recv %d bytes\tFlags: %v\tseq: %d, ack: %d\n", len, tcpFlags, seqNum, ackNum)
 		case 1:
-			_, _ = fmt.Fprintf(tw, "--> Send %d bytes\tFlags: %v\tseq: %d, ack: %d\n\n", len, tcpFlags, seqNum, ackNum)
+			_, _ = fmt.Fprintf(tw, "--> send %d bytes\tFlags: %v\tseq: %d, ack: %d\n", len, tcpFlags, seqNum, ackNum)
 		}
 		_ = tw.Flush()
+	}
+}
+
+// print a plain string if verbose is true.
+func printDebugf(str string) {
+	if config.Verbose {
+		fmt.Print(str)
 	}
 }
