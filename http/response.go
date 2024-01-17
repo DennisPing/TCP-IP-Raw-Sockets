@@ -18,8 +18,16 @@ type Response struct {
 	Body       []byte
 }
 
-func ParseResponse(url *url.URL, data []byte) *Response {
+func ParseResponse(url *url.URL, data []byte) (*Response, error) {
+	if data == nil || len(data) == 0 {
+		return nil, fmt.Errorf("empty data in response")
+	}
+
 	split := bytes.SplitN(data, []byte("\r\n\r\n"), 2)
+	if len(split) != 2 {
+		return nil, fmt.Errorf("no HTTP body found")
+	}
+
 	top := split[0]
 	body := split[1]
 
@@ -53,7 +61,7 @@ func ParseResponse(url *url.URL, data []byte) *Response {
 		Reason:     reason,
 		Headers:    headerMap,
 		Body:       body,
-	}
+	}, nil
 }
 
 // Decode payload from gzip to regular bytes.

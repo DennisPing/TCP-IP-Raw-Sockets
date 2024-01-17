@@ -67,5 +67,5 @@ func (c *Client) Do(req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	return ParseResponse(req.Url, rawResp), nil
+	return ParseResponse(req.Url, rawResp)
 }
