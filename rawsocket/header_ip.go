@@ -2,83 +2,77 @@ package rawsocket
 
 import (
 	"encoding/binary"
-	"net"
 )
 
-// Enum for the 3 bit flags within a uint16
 type IPFlags uint16
 
-// Bit positions [RF, DF, MF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+// Bit positions [ RF, DF, MF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 ]
 const (
 	RF IPFlags = 1 << 15
 	DF IPFlags = 1 << 14
 	MF IPFlags = 1 << 13
 )
 
-// IPv4 Header struct size is 20 bytes
+// IPHeader struct size is 20 bytes for IPv4
 // https://en.wikipedia.org/wiki/IPv4#Header
 type IPHeader struct {
-	Version     uint8 // Always 4
-	Ihl         uint8 // Always 5 since we have no options
-	Tos         uint8 // Always 0 when we send out, can be 8 when receiving from server
-	Tot_len     uint16
-	Id          uint16
-	Flags       IPFlags // 3 bits, part of uint16
-	Frag_offset uint16  // 13 bits, part of uint16
-	Ttl         uint8   // Always 64 when we send out
-	Protocol    uint8   // Always 6 for TCP
-	Checksum    uint16
-	Src_ip      net.IP
-	Dst_ip      net.IP
+	Version    uint8 // Always 4
+	Ihl        uint8 // Always 5 since we have no options
+	Tos        uint8 // Always 0 when we send out, can be 8 when receiving from server
+	TotLen     uint16
+	Id         uint16
+	Flags      IPFlags // 3 bits, part of uint16
+	FragOffset uint16  // 13 bits, part of uint16
+	Ttl        uint8   // Always 64 when we send out
+	Protocol   uint8   // Always 6 for TCP
+	Checksum   uint16
+	SrcIp      [4]byte
+	DstIp      [4]byte
 }
 
-// Convert an IPv4 header into a byte array
+// ToBytes converts an IPv4 header into a byte array
 func (ip *IPHeader) ToBytes() []byte {
 	buf := make([]byte, 20)
 	var combo1 uint8 = (ip.Version << 4) | ip.Ihl
 	binary.BigEndian.PutUint16(buf[0:2], uint16(combo1)<<8|uint16(ip.Tos))
-	binary.BigEndian.PutUint16(buf[2:4], ip.Tot_len)
+	binary.BigEndian.PutUint16(buf[2:4], ip.TotLen)
 	binary.BigEndian.PutUint16(buf[4:6], ip.Id)
-	binary.BigEndian.PutUint16(buf[6:8], uint16(ip.Flags)|ip.Frag_offset)
+	binary.BigEndian.PutUint16(buf[6:8], uint16(ip.Flags)|ip.FragOffset)
 	binary.BigEndian.PutUint16(buf[8:10], uint16(ip.Ttl)<<8|uint16(ip.Protocol))
-	binary.BigEndian.PutUint16(buf[10:12], uint16(0)) // Checksum
-	var src_ip uint32
-	for _, b := range ip.Src_ip.To4() {
-		src_ip = (src_ip << 8) | uint32(b)
+	// Leave 10-12 as zeros for checksum
+	for i, b := range ip.SrcIp {
+		buf[12+i] = b
 	}
-	binary.BigEndian.PutUint32(buf[12:16], src_ip)
-	var dst_ip uint32
-	for _, b := range ip.Dst_ip.To4() {
-		dst_ip = (dst_ip << 8) | uint32(b)
+	for i, b := range ip.DstIp {
+		buf[16+i] = b
 	}
-	binary.BigEndian.PutUint32(buf[16:20], dst_ip)
 	binary.BigEndian.PutUint16(buf[10:12], IPChecksum(buf))
 	return buf
 }
 
-// Convert a byte array into an IPv4 header
+// NewIPHeader converts a byte array into an IPv4 header
 func NewIPHeader(packet []byte) *IPHeader {
-	ip := new(IPHeader)
-	ip.Version = packet[0] >> 4
-	ip.Ihl = packet[0] & 0xf
-	ip.Tot_len = binary.BigEndian.Uint16(packet[2:4])
-	ip.Id = binary.BigEndian.Uint16(packet[4:6])
-	ip.Flags = IPFlags(binary.BigEndian.Uint16(packet[6:8]))
-	ip.Frag_offset = binary.BigEndian.Uint16(packet[6:8]) & 0x1fff // This black magic removes the first 3 bits
-	ip.Ttl = packet[8]
-	ip.Protocol = packet[9]
-	ip.Checksum = binary.BigEndian.Uint16(packet[10:12])
-	ip.Src_ip = net.IP(make([]byte, 4))
-	for i := 0; i < 4; i++ {
-		ip.Src_ip[i] = packet[12+i]
+	ip := &IPHeader{
+		Version:    packet[0] >> 4,
+		Ihl:        packet[0] & 0x0f,
+		TotLen:     binary.BigEndian.Uint16(packet[2:4]),
+		Id:         binary.BigEndian.Uint16(packet[4:6]),
+		Flags:      IPFlags(binary.BigEndian.Uint16(packet[6:8])),
+		FragOffset: binary.BigEndian.Uint16(packet[6:8]) & 0x1fff,
+		Ttl:        packet[8],
+		Protocol:   packet[9],
+		Checksum:   binary.BigEndian.Uint16(packet[10:12]),
 	}
-	ip.Dst_ip = net.IP(make([]byte, 4))
 	for i := 0; i < 4; i++ {
-		ip.Dst_ip[i] = packet[16+i]
+		ip.SrcIp[i] = packet[12+i]
+	}
+	for i := 0; i < 4; i++ {
+		ip.DstIp[i] = packet[16+i]
 	}
 	return ip
 }
 
+// IPChecksum computes the checksum for IPv4
 // Wiki: https://en.wikipedia.org/wiki/IPv4_header_checksum
 // Explanation: https://gist.github.com/david-hoze/0c7021434796997a4ca42d7731a7073a
 func IPChecksum(b []byte) uint16 {
