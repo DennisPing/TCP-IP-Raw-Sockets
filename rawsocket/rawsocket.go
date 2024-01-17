@@ -35,7 +35,10 @@ func InitRecvSocket() (int, error) {
 	// Set the receive buffer size
 	err = syscall.SetsockoptInt(sockFd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 1024*1024) // 1 MB
 	if err != nil {
-		syscall.Close(sockFd)
+		err := syscall.Close(sockFd)
+		if err != nil {
+			return -1, err
+		}
 		return -1, fmt.Errorf("unable to set recv buffer size: %w", err)
 	}
 	return sockFd, nil

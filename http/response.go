@@ -61,12 +61,24 @@ func decodeGzip(payload []byte) []byte {
 	if len(payload) == 0 {
 		return payload
 	}
+
 	reader, err := gzip.NewReader(bytes.NewReader(payload))
 	if err != nil {
 		panic(fmt.Sprintf("Unable to create gzip reader: %s", err))
 	}
-	defer reader.Close()
+
+	defer func(reader *gzip.Reader) {
+		err := reader.Close()
+		if err != nil {
+			// Ignore
+		}
+	}(reader)
+
 	var buf bytes.Buffer
-	io.Copy(&buf, reader)
+	_, err = io.Copy(&buf, reader)
+	if err != nil {
+		return nil
+	}
+
 	return buf.Bytes()
 }

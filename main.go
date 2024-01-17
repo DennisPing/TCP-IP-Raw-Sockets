@@ -58,7 +58,14 @@ func main() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	defer f.Close()
+
+	defer func(f *os.File) {
+		err := f.Close()
+		if err != nil {
+			fmt.Println(err)
+			os.Exit(1)
+		}
+	}(f)
 
 	_, err = f.Write(resp.Body)
 	if err != nil {
