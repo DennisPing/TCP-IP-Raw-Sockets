@@ -13,7 +13,7 @@ This program called `rawhttpget` takes one URL, downloads the target URL page, a
 
 ## Requirements
 
-Go 1.16+
+Go 1.21+
 
 This project only works on Linux.
 
@@ -84,63 +84,37 @@ go tool cover -html=coverage.out
 
 ```
 > sudo ./rawhttpget -v http://david.choffnes.com/classes/cs4700sp22/project4.php
-Server IP: 204.44.192.60
---> Send 44 bytes	Flags: [SYN]		seq: 1527861304, ack: 0
-
-<-- Recv 44 bytes	Flags: [SYN ACK]	seq: 338724193, ack: 1527861305
-
---> Send 40 bytes	Flags: [ACK]		seq: 1527861305, ack: 338724194
-
---> Send 157 bytes	Flags: [ACK PSH]	seq: 1527861305, ack: 338724194
-
-<-- Recv 40 bytes	Flags: [ACK]		seq: 338724194, ack: 1527861422
-
-<-- Recv 1500 bytes	Flags: [ACK]		seq: 338724194, ack: 1527861422
-
---> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338725654
-
-<-- Recv 1500 bytes	Flags: [ACK PSH]	seq: 338725654, ack: 1527861422
-
---> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338727114
-
-<-- Recv 1500 bytes	Flags: [ACK]		seq: 338727114, ack: 1527861422
-
---> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338728574
-
-<-- Recv 1500 bytes	Flags: [ACK PSH]	seq: 338728574, ack: 1527861422
-
---> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338730034
-
-<-- Recv 1500 bytes	Flags: [ACK]		seq: 338730034, ack: 1527861422
-
---> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338731494
-
-<-- Recv 1500 bytes	Flags: [ACK]		seq: 338731494, ack: 1527861422
-
---> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338732954
-
-<-- Recv 1500 bytes	Flags: [ACK]		seq: 338732954, ack: 1527861422
-
---> Send 40 bytes	Flags: [ACK]		seq: 1527861422, ack: 338734414
-
-<-- Recv 385 bytes	Flags: [ACK PSH FIN]	seq: 338734414, ack: 1527861422
-
---> Send 40 bytes	Flags: [FIN ACK]	seq: 1527861422, ack: 338734760
-
-<-- Recv 40 bytes	Flags: [ACK]		seq: 338734760, ack: 1527861423
-
+Remote IP: 204.44.192.60
+Local IP: 192.168.0.237
+--> send 48 bytes       Flags: SYN              seq: 2123832061, ack: 0
+<-- recv 48 bytes       Flags: SYN ACK          seq: 2154816049, ack: 2123832062
+--> send 40 bytes       Flags: ACK              seq: 2123832062, ack: 2154816050
+--> send 157 bytes      Flags: ACK              seq: 2123832062, ack: 2154816050
+<-- recv 40 bytes       Flags: ACK              seq: 2154816050, ack: 2123832179
+<-- recv 40 bytes       Flags: ACK              seq: 2154816050, ack: 2123832179
+--> send 40 bytes       Flags: ACK              seq: 2123832179, ack: 2154816050
+<-- recv 1500 bytes     Flags: ACK              seq: 2154816050, ack: 2123832179
+--> send 40 bytes       Flags: ACK              seq: 2123832179, ack: 2154817510
+<-- recv 1500 bytes     Flags: ACK              seq: 2154817510, ack: 2123832179
+--> send 40 bytes       Flags: ACK              seq: 2123832179, ack: 2154818970
+<-- recv 1500 bytes     Flags: ACK              seq: 2154818970, ack: 2123832179
+--> send 40 bytes       Flags: ACK              seq: 2123832179, ack: 2154820430
+<-- recv 1500 bytes     Flags: ACK              seq: 2154820430, ack: 2123832179
+--> send 40 bytes       Flags: ACK              seq: 2123832179, ack: 2154821890
+<-- recv 1500 bytes     Flags: ACK              seq: 2154821890, ack: 2123832179
+--> send 40 bytes       Flags: ACK              seq: 2123832179, ack: 2154823350
+<-- recv 1061 bytes     Flags: PSH ACK          seq: 2154823350, ack: 2123832179
+--> send 40 bytes       Flags: ACK              seq: 2123832179, ack: 2154824371
+<-- recv 1500 bytes     Flags: ACK              seq: 2154824371, ack: 2123832179
+--> send 40 bytes       Flags: ACK              seq: 2123832179, ack: 2154825831
+<-- recv 804 bytes      Flags: PSH ACK          seq: 2154825831, ack: 2123832179
+--> send 40 bytes       Flags: ACK              seq: 2123832179, ack: 2154826595
+<-- recv 40 bytes       Flags: FIN ACK          seq: 2154826595, ack: 2123832179
+--> send 40 bytes       Flags: FIN ACK          seq: 2123832179, ack: 2154826596
+<-- recv 40 bytes       Flags: ACK              seq: 2154826596, ack: 2123832180
 200 OK
-Wrote 22636 bytes to project4.php
+Wrote 22576 bytes to project4.php
 ```
-
-## Performance
-
-| File         | Size (MB) | Download Time (sec) |
-| ------------ | --------- | ------------------- |
-| project4.php | 0.02      | 0.3                 |
-| 2MB.log      | 2.0       | 3.0                 |
-| 10MB.log     | 10.0      | 13.0                |
-| 50MB.log     | 50.0      | 62.0                |
 
 ## Design Details
 
@@ -148,13 +122,10 @@ Wrote 22636 bytes to project4.php
   1. `Wrap(IPHeader, TCPHeader) -> packet`
   2. `Unwrap(packet) -> IPHeader, TCPHeader, error`
 - When a packet is unwrapped, the TCP and IP checksums are automatically checked. If there is an error, it will return the error back to the client to handle. Likewise, when a packet is wrapped, its checksum is automatically calculated into the packet.
-- The `http` package loosely mimics the Go std lib `net/conn` and `net/http`.
-- If a packet we sent out has not been ACK'd within 1 minute, the packet is assumed to be lost, so we retransmit it. This almost never happens since we only send out 1 packet that needs to get ACK'd.
+- The `http` package loosely mimics the Go std lib `net` library.
+- The window scale is set at 3 which means a max transfer speed of 512 KiB.
+- Ideally, the window scale is 7 which means a max transfer speed of 8 MiB. However, this would require utilizing an application layer buffer so that the network layer buffer doesn't overflow.
 
 ## Random Notes
-
-* This program uses HTTP/1.0 instead of HTTP/1.1 because HTTP/1.1 may contain "chunked encoding" which is a pain to decode. Since this program does not use the `keep-alive` header, HTTP/1.0 is sufficient for our use case and it greatly simplies decoding.
-
-* This program accepts gzip encoding if the server sends gzip'd payloads.
-
-* Github Actions does not allow you to run in `sudo` mode (of course) so half of the unit tests cannot run in CI. It is best to run tests locally.
+- This program uses HTTP/1.0 instead of HTTP/1.1 because HTTP/1.1 may contain "chunked encoding" which is a pain to decode. Since this program does not use the `keep-alive` header, HTTP/1.0 is sufficient for our use case and it greatly simplies decoding.
+- This program accepts gzip encoding if the server wants to send compressed data.
