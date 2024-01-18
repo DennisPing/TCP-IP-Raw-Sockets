@@ -94,7 +94,7 @@ func NewConn(hostname string, timeout time.Duration) (*Conn, error) {
 
 // Connect to the remote host via the 3 way handshake.
 func (c *Conn) Connect() error {
-	seqNum := uint32(rand.Intn(65535)) // 0 to 64K. Don't accidentally choose a high random number which later rolls over.
+	seqNum := rand.Uint32()
 	ackNum := uint32(0)
 
 	err := c.send(seqNum, ackNum, nil, rawsocket.SYN, WithMSS(c.mss), WithWScale(c.wScale))

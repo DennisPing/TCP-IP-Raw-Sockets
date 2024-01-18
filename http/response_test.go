@@ -72,7 +72,7 @@ func TestNewResponse(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		res := ParseResponse(test.url, test.rawData)
+		res, _ := ParseResponse(test.url, test.rawData)
 		if res.Url != test.url {
 			t.Errorf("Expect: %s Got: %s", test.url, res.Url)
 		}

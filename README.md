@@ -127,5 +127,5 @@ Wrote 22576 bytes to project4.php
 - Ideally, the window scale is 7 which means a max transfer speed of 8 MiB. However, this would require utilizing an application layer buffer so that the network layer buffer doesn't overflow.
 
 ## Random Notes
-- This program uses HTTP/1.0 instead of HTTP/1.1 because HTTP/1.1 may contain "chunked encoding" which is a pain to decode. Since this program does not use the `keep-alive` header, HTTP/1.0 is sufficient for our use case and it greatly simplies decoding.
+- This program uses HTTP/1.0 instead of HTTP/1.1 because HTTP/1.1 may contain "chunked encoding" which is a pain to decode. Since this program does not use the `keep-alive` header, HTTP/1.0 is sufficient for our use case, and it greatly simplifies decoding.
 - This program accepts gzip encoding if the server wants to send compressed data.
