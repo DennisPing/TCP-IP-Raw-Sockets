@@ -27,8 +27,8 @@ type Conn struct {
 	wScale        uint8                 // Window scale
 	sendFd        int
 	recvFd        int
-	initialSeqNum uint32 // The initial seqNum after Connect(). Only used once.
-	initialAckNum uint32 // The initial seqNum after Connect(). Only used once.
+	initialSeqNum uint32 // The initial seqNum after connect(). Only used once.
+	initialAckNum uint32 // The initial seqNum after connect(). Only used once.
 }
 
 // Verbose formatter
@@ -79,43 +79,17 @@ func NewConn(hostname string, timeout time.Duration) (*Conn, error) {
 		remoteAddr: syscall.SockaddrInet4{Port: 80, Addr: remoteIP},
 		advWindow:  65535,
 		mss:        1460,
-		wScale:     3,
+		wScale:     5,
 		sendFd:     sendFd,
 		recvFd:     recvFd,
 	}
 
-	err = conn.Connect()
+	err = conn.connect()
 	if err != nil {
 		return nil, err
 	}
 
 	return conn, nil
-}
-
-// Connect to the remote host via the 3 way handshake.
-func (c *Conn) Connect() error {
-	seqNum := rand.Uint32()
-	ackNum := uint32(0)
-
-	err := c.send(seqNum, ackNum, nil, rawsocket.SYN, WithMSS(c.mss), WithWScale(c.wScale))
-	if err != nil {
-		return fmt.Errorf("1st handshake failed: %w", err)
-	}
-
-	tcp, err := c.recv()
-	if err != nil {
-		return fmt.Errorf("2nd handshake failed: %w", err)
-	}
-
-	seqNum, ackNum = getNextNumbers(tcp)
-	err = c.send(seqNum, ackNum, nil, rawsocket.ACK)
-	if err != nil {
-		return fmt.Errorf("3rd handshake failed: %w", err)
-	}
-
-	c.initialSeqNum = seqNum
-	c.initialAckNum = ackNum
-	return nil
 }
 
 // SendRequest sends the request to the remote host.
@@ -171,6 +145,47 @@ func (c *Conn) RecvResponse() ([]byte, error) {
 	return ll.ToBytes(), nil
 }
 
+// Close the underlying file descriptors.
+func (c *Conn) Close() error {
+	err := syscall.Close(c.sendFd)
+	if err != nil {
+		return err
+	}
+
+	err = syscall.Close(c.recvFd)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Connect to the remote host via the 3 way handshake.
+func (c *Conn) connect() error {
+	seqNum := rand.Uint32()
+	ackNum := uint32(0)
+
+	err := c.send(seqNum, ackNum, nil, rawsocket.SYN, WithMSS(c.mss), WithWScale(c.wScale))
+	if err != nil {
+		return fmt.Errorf("1st handshake failed: %w", err)
+	}
+
+	tcp, err := c.recv()
+	if err != nil {
+		return fmt.Errorf("2nd handshake failed: %w", err)
+	}
+
+	seqNum, ackNum = getNextNumbers(tcp)
+	err = c.send(seqNum, ackNum, nil, rawsocket.ACK)
+	if err != nil {
+		return fmt.Errorf("3rd handshake failed: %w", err)
+	}
+
+	c.initialSeqNum = seqNum
+	c.initialAckNum = ackNum
+	return nil
+}
+
 // Send a single packet to the send socket.
 func (c *Conn) send(seqNum uint32, ackNum uint32, payload []byte, tcpFlags rawsocket.TCPFlags, opts ...TCPOptions) error {
 	var tcpOptions []byte
@@ -218,21 +233,6 @@ func (c *Conn) recv() (tcp *rawsocket.TCPHeader, err error) {
 		printDebugIO(0, n, tcp.Flags, tcp.SeqNum, tcp.AckNum)
 		return tcp, nil
 	}
-}
-
-// Close the underlying file descriptors.
-func (c *Conn) Close() error {
-	err := syscall.Close(c.sendFd)
-	if err != nil {
-		return err
-	}
-
-	err = syscall.Close(c.recvFd)
-	if err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // Send the "FIN, ACK" to disconnect from the server.

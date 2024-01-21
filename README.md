@@ -123,8 +123,8 @@ Wrote 22576 bytes to project4.php
   2. `Unwrap(packet) -> IPHeader, TCPHeader, error`
 - When a packet is unwrapped, the TCP and IP checksums are automatically checked. If there is an error, it will return the error back to the client to handle. Likewise, when a packet is wrapped, its checksum is automatically calculated into the packet.
 - The `http` package loosely mimics the Go std lib `net` library.
-- The window scale is set at 3 which means a max transfer speed of 512 KiB.
-- Ideally, the window scale is 7 which means a max transfer speed of 8 MiB. However, this would require utilizing an application layer buffer so that the network layer buffer doesn't overflow.
+- The window scale is set at 5 which means a max transfer speed of 2 MiB/sec.
+- Ideally, the window scale is 7 which means a max transfer speed of 8 MiB/sec. However, this would require utilizing an application layer buffer so that the network layer buffer doesn't overflow.
 
 ## Random Notes
 - This program uses HTTP/1.0 instead of HTTP/1.1 because HTTP/1.1 may contain "chunked encoding" which is a pain to decode. Since this program does not use the `keep-alive` header, HTTP/1.0 is sufficient for our use case, and it greatly simplifies decoding.

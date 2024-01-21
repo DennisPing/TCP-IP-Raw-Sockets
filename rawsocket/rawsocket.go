@@ -33,7 +33,7 @@ func InitRecvSocket() (int, error) {
 	// sysctl net.core.rmem_max => max SO_RCVBUF
 
 	// Set the receive buffer size
-	err = syscall.SetsockoptInt(sockFd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 1024*1024) // 1 MB
+	err = syscall.SetsockoptInt(sockFd, syscall.SOL_SOCKET, syscall.SO_RCVBUF, 1024*1024*2) // 2 MB
 	if err != nil {
 		err := syscall.Close(sockFd)
 		if err != nil {
