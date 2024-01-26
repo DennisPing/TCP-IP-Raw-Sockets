@@ -70,7 +70,6 @@ func ParseResponse(url *url.URL, reader io.Reader) (*Response, error) {
 		response.Headers[headerName] = headerParts[1]
 	}
 
-	//var bodyReader = io.NopCloser(bufReader)
 	if val, ok := response.Headers["content-encoding"]; ok && val == "gzip" {
 		gzipReader, err := gzip.NewReader(bufReader)
 		if err != nil {
@@ -80,31 +79,6 @@ func ParseResponse(url *url.URL, reader io.Reader) (*Response, error) {
 	} else {
 		response.Body = io.NopCloser(bufReader)
 	}
-
-	//var body bytes.Buffer
-	//if val, ok := response.Headers["content-encoding"]; ok {
-	//	if val == "gzip" {
-	//		gzipReader, err := gzip.NewReader(bufReader)
-	//		if err != nil {
-	//			return nil, err
-	//		}
-	//
-	//		defer func(gzipReader *gzip.Reader) {
-	//			err := gzipReader.Close()
-	//			if err != nil {
-	//
-	//			}
-	//		}(gzipReader)
-	//
-	//		if _, err := io.Copy(&body, gzipReader); err != nil {
-	//			return nil, err
-	//		}
-	//	}
-	//} else {
-	//	if _, err := io.Copy(&body, bufReader); err != nil {
-	//		return nil, err
-	//	}
-	//}
 
 	return response, nil
 }

@@ -5,6 +5,8 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestLookupLocalIP(t *testing.T) {
@@ -15,18 +17,16 @@ func TestLookupLocalIP(t *testing.T) {
 	}
 	firstWord := strings.Split(string(output), " ")[0]
 	expect := net.ParseIP(strings.TrimSuffix(firstWord, " \n"))
-	local_ip, _ := LookupLocalIP()
-	if !expect.Equal(local_ip) {
-		t.Errorf("Expect %v, but FindMyIP() = %v", expect, local_ip)
-	}
+	localIp, _ := LookupLocalIP()
+
+	assert.True(t, expect.Equal(localIp))
 }
 
 func TestLookupRemoteIP(t *testing.T) {
-	type test struct {
+	tests := []struct {
 		hostname string
 		expect   net.IP
-	}
-	tests := []test{
+	}{
 		{
 			hostname: "david.choffnes.com",
 			expect:   net.ParseIP("204.44.192.60"),
@@ -38,17 +38,12 @@ func TestLookupRemoteIP(t *testing.T) {
 	}
 	for _, tc := range tests {
 		ip, err := LookupRemoteIP(tc.hostname)
-		if err != nil {
-			t.Errorf("unable to resolve %s: %v", tc.hostname, err)
-		}
-		if !tc.expect.Equal(ip) {
-			t.Errorf("Expect %v, but LookupRemoteIP(%s) = %v", tc.expect, tc.hostname, ip)
-		}
+		assert.Nil(t, err, "unable to resolve IP address: %s", tc.hostname)
+		assert.True(t, tc.expect.Equal(ip))
 	}
 
 	// Test error case
-	ip, err := LookupRemoteIP("david.choffnes.com.invalid")
-	if err == nil {
-		t.Errorf("Expect error, but LookupRemoteIP(david.choffnes.com.invalid) = %v", ip)
-	}
+	remoteHost := "david.choffnes.com.invalid"
+	_, err := LookupRemoteIP(remoteHost)
+	assert.NotNil(t, err, "expected '%s' to fail lookup but did not", remoteHost)
 }
