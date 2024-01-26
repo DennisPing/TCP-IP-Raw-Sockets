@@ -3,8 +3,10 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"path"
+	"strconv"
 
 	"github.com/DennisPing/TCP-IP-Raw-Sockets/config"
 	myhttp "github.com/DennisPing/TCP-IP-Raw-Sockets/http"
@@ -51,7 +53,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Write response body to file
+	// Create the output file
 	fileName := path.Base(resp.Url.Path)
 	f, err := os.OpenFile(fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
 	if err != nil {
@@ -67,10 +69,19 @@ func main() {
 		}
 	}(f)
 
-	_, err = f.Write(resp.Body)
+	// Lower file owner permissions down to regular user
+	uid, _ := strconv.Atoi(os.Getenv("SUDO_UID"))
+	gid, _ := strconv.Atoi(os.Getenv("SUDO_GID"))
+	if err := f.Chown(uid, gid); err != nil {
+		fmt.Printf("Error changing file ownership: %v", err)
+		os.Exit(1)
+	}
+
+	// Write response body to disk
+	n, err := io.Copy(f, resp.Body)
 	if err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	fmt.Printf("Wrote %d bytes to %s\n", len(resp.Body), fileName)
+	fmt.Printf("Wrote %d bytes to %s\n", n, fileName)
 }

@@ -3,6 +3,7 @@ package http
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"os"
 	"syscall"
@@ -79,7 +80,7 @@ func NewConn(hostname string, timeout time.Duration) (*Conn, error) {
 		remoteAddr: syscall.SockaddrInet4{Port: 80, Addr: remoteIP},
 		advWindow:  65535,
 		mss:        1460,
-		wScale:     5,
+		wScale:     4,
 		sendFd:     sendFd,
 		recvFd:     recvFd,
 	}
@@ -107,10 +108,10 @@ func (c *Conn) SendRequest(req *Request) error {
 	return nil
 }
 
-// RecvResponse receives all data from the GET request and return the raw payload.
-func (c *Conn) RecvResponse() ([]byte, error) {
+// RecvResponse receives all data from the GET request and returns a reader as a stream
+func (c *Conn) RecvResponse() (io.Reader, error) {
 	var nextSeqNum, nextAckNum uint32
-	ll := NewDoublyLinkedList() // The linked list to store incoming payloads
+	ll := NewLinkedList() // The linked list to store incoming payloads
 
 	for {
 		tcp, err := c.recv()
@@ -141,8 +142,7 @@ func (c *Conn) RecvResponse() ([]byte, error) {
 		return nil, err
 	}
 
-	// Convert the linked list to a byte array
-	return ll.ToBytes(), nil
+	return NewLinkedListReader(ll), nil
 }
 
 // Close the underlying file descriptors.

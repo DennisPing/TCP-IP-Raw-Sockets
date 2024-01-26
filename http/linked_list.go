@@ -11,56 +11,54 @@ type Node struct {
 	prev    *Node
 }
 
-type DoublyLinkedList struct {
+type LinkedList struct {
 	head     *Node
 	tail     *Node
 	totalLen int // Number of bytes
 }
 
-func NewDoublyLinkedList() *DoublyLinkedList {
-	return &DoublyLinkedList{}
+func NewLinkedList() *LinkedList {
+	return &LinkedList{}
 }
 
 // InsertNode inserts a new Node in the linked list in the correct order based on sequence number.
-func (dll *DoublyLinkedList) InsertNode(newNode *Node) {
-	if dll.head == nil {
+func (ll *LinkedList) InsertNode(newNode *Node) {
+	if ll.head == nil {
 		// List is empty, so the new node becomes both head and tail.
-		dll.head = newNode
-		dll.tail = newNode
-	} else if compareSeqNums(newNode.seqNum, dll.head.seqNum) <= 0 {
+		ll.head = newNode
+		ll.tail = newNode
+	} else if compareSeqNums(newNode.seqNum, ll.head.seqNum) <= 0 {
 		// Insert before the head.
-		newNode.next = dll.head
-		dll.head.prev = newNode
-		dll.head = newNode
-	} else if compareSeqNums(newNode.seqNum, dll.tail.seqNum) >= 0 {
+		newNode.next = ll.head
+		ll.head.prev = newNode
+		ll.head = newNode
+	} else if compareSeqNums(newNode.seqNum, ll.tail.seqNum) >= 0 {
 		// Insert after the tail.
-		newNode.prev = dll.tail
-		dll.tail.next = newNode
-		dll.tail = newNode
+		newNode.prev = ll.tail
+		ll.tail.next = newNode
+		ll.tail = newNode
 	} else {
 		// Insert somewhere in the middle; find the insertion point.
-		insertAfter := dll.findInsertionPoint(newNode.seqNum)
+		insertAfter := ll.findInsertionPoint(newNode.seqNum)
 		newNode.next = insertAfter.next
 		newNode.prev = insertAfter
 
 		if insertAfter.next != nil { // Check if insertAfter is not the tail
 			insertAfter.next.prev = newNode
-		} else {
-			dll.tail = newNode // Update tail if the new node is at the end
 		}
 
 		insertAfter.next = newNode
 	}
-	dll.totalLen += len(newNode.payload)
+	ll.totalLen += len(newNode.payload)
 }
 
-func (dll *DoublyLinkedList) ToBytes() []byte {
-	if dll.head == nil {
+func (ll *LinkedList) ToBytes() []byte {
+	if ll.head == nil {
 		return nil
 	}
 
-	buffer := make([]byte, 0, dll.totalLen)
-	current := dll.head
+	buffer := make([]byte, 0, ll.totalLen)
+	current := ll.head
 	for current != nil {
 		buffer = append(buffer, current.payload...)
 		current = current.next
@@ -68,9 +66,9 @@ func (dll *DoublyLinkedList) ToBytes() []byte {
 	return buffer
 }
 
-func (dll *DoublyLinkedList) findInsertionPoint(seqNum uint32) *Node {
+func (ll *LinkedList) findInsertionPoint(seqNum uint32) *Node {
 	// Start searching from the tail of the list.
-	current := dll.tail
+	current := ll.tail
 
 	// Traverse the list in reverse until we find the insertion point.
 	for current != nil {
@@ -82,7 +80,7 @@ func (dll *DoublyLinkedList) findInsertionPoint(seqNum uint32) *Node {
 		current = current.prev
 	}
 
-	return dll.head // Should not happen
+	return ll.head // Should not happen
 }
 
 // compareSeqNums returns a negative number if seqNum1 is "less than" seqNum2,

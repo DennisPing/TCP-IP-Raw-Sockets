@@ -1,7 +1,7 @@
 package http
 
 import (
-	"bytes"
+	"bufio"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -15,78 +15,96 @@ type Response struct {
 	StatusCode int
 	Reason     string
 	Headers    map[string]string
-	Body       []byte
+	Body       io.ReadCloser // Mimic the Go std lib
 }
 
-func ParseResponse(url *url.URL, data []byte) (*Response, error) {
-	if data == nil || len(data) == 0 {
-		return nil, fmt.Errorf("empty data in response")
+// ParseResponse parses the raw response into a Response object
+func ParseResponse(url *url.URL, reader io.Reader) (*Response, error) {
+	bufReader := bufio.NewReader(reader) // Use a buffered stream
+
+	// Read the status line
+	statusLine, err := bufReader.ReadString('\n')
+	if err != nil {
+		return nil, fmt.Errorf("error reading status line: %v", err)
 	}
 
-	split := bytes.SplitN(data, []byte("\r\n\r\n"), 2)
-	if len(split) != 2 {
-		return nil, fmt.Errorf("no HTTP body found")
+	statusLine = strings.TrimSpace(statusLine) // Remove the trailing \r\n
+	parts := strings.SplitN(statusLine, " ", 3)
+	if len(parts) < 3 {
+		return nil, fmt.Errorf("malformed status line")
 	}
 
-	top := split[0]
-	body := split[1]
-
-	// Parse the first line (HTTP/1.0 200 OK)
-	statusLine := string(bytes.SplitN(top, []byte("\r\n"), 2)[0])
-	threeParts := strings.SplitN(statusLine, " ", 3)
-	statusCode, _ := strconv.Atoi(threeParts[1])
-	reason := threeParts[2]
-
-	// Parse the headers
-	headers := bytes.SplitN(top, []byte("\r\n"), 2)[1]
-	headerLines := bytes.Split(headers, []byte("\r\n"))
-	headerMap := make(map[string]string)
-	for _, header := range headerLines {
-		headerSplit := bytes.SplitN(header, []byte(": "), 2)
-		key := string(headerSplit[0])
-		value := string(headerSplit[1])
-		headerMap[key] = value
+	statusCode, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("error parsing status code: %v", err)
 	}
 
-	// Check if header "Content-Encoding" exists
-	if _, ok := headerMap["Content-Encoding"]; ok {
-		if headerMap["Content-Encoding"] == "gzip" {
-			body = decodeGzip(body)
-		}
-	}
-
-	return &Response{
+	response := &Response{
 		Url:        url,
 		StatusCode: statusCode,
-		Reason:     reason,
-		Headers:    headerMap,
-		Body:       body,
-	}, nil
-}
-
-// Decode payload from gzip to regular bytes.
-func decodeGzip(payload []byte) []byte {
-	if len(payload) == 0 {
-		return payload
+		Reason:     parts[2],
+		Headers:    make(map[string]string),
 	}
 
-	reader, err := gzip.NewReader(bytes.NewReader(payload))
-	if err != nil {
-		panic(fmt.Sprintf("Unable to create gzip reader: %s", err))
-	}
-
-	defer func(reader *gzip.Reader) {
-		err := reader.Close()
-		if err != nil {
-			// Ignore
+	// Read the headers
+	for {
+		line, err := bufReader.ReadString('\n')
+		if err == io.EOF {
+			return nil, fmt.Errorf("no response headers found")
 		}
-	}(reader)
+		if err != nil {
+			return nil, fmt.Errorf("error reading header: %v", err)
+		}
 
-	var buf bytes.Buffer
-	_, err = io.Copy(&buf, reader)
-	if err != nil {
-		return nil
+		line = strings.TrimSpace(line)
+		if line == "" {
+			break // End of headers
+		}
+
+		headerParts := strings.SplitN(line, ": ", 2)
+		if len(headerParts) != 2 {
+			return nil, fmt.Errorf("malformed header: %s", line)
+		}
+
+		headerName := strings.ToLower(headerParts[0])
+		response.Headers[headerName] = headerParts[1]
 	}
 
-	return buf.Bytes()
+	//var bodyReader = io.NopCloser(bufReader)
+	if val, ok := response.Headers["content-encoding"]; ok && val == "gzip" {
+		gzipReader, err := gzip.NewReader(bufReader)
+		if err != nil {
+			return nil, err
+		}
+		response.Body = gzipReader
+	} else {
+		response.Body = io.NopCloser(bufReader)
+	}
+
+	//var body bytes.Buffer
+	//if val, ok := response.Headers["content-encoding"]; ok {
+	//	if val == "gzip" {
+	//		gzipReader, err := gzip.NewReader(bufReader)
+	//		if err != nil {
+	//			return nil, err
+	//		}
+	//
+	//		defer func(gzipReader *gzip.Reader) {
+	//			err := gzipReader.Close()
+	//			if err != nil {
+	//
+	//			}
+	//		}(gzipReader)
+	//
+	//		if _, err := io.Copy(&body, gzipReader); err != nil {
+	//			return nil, err
+	//		}
+	//	}
+	//} else {
+	//	if _, err := io.Copy(&body, bufReader); err != nil {
+	//		return nil, err
+	//	}
+	//}
+
+	return response, nil
 }

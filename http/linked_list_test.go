@@ -38,7 +38,7 @@ func TestInsertNode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			dll := NewDoublyLinkedList()
+			ll := NewLinkedList()
 
 			// Create nodes and add them to a slice for insertion.
 			nodes := make(map[uint32]*Node)
@@ -48,11 +48,11 @@ func TestInsertNode(t *testing.T) {
 
 			// Insert nodes into the doubly linked list.
 			for _, seqNum := range tt.insertSeqNums {
-				dll.InsertNode(nodes[seqNum])
+				ll.InsertNode(nodes[seqNum])
 			}
 
 			// Verify the order and connections of the nodes in the list by iterating from head to tail.
-			current := dll.head
+			current := ll.head
 			expectedTotalLen := 0
 			for i, expectedSeqNum := range tt.sortedSeqNums {
 				expectedNode := nodes[expectedSeqNum]
@@ -65,18 +65,18 @@ func TestInsertNode(t *testing.T) {
 				expectedTotalLen += len(expectedNode.payload)
 				current = current.next
 			}
-			assert.Nil(t, current)                                                      // After the last node, current should be nil.
-			assert.Equal(t, nodes[tt.sortedSeqNums[len(tt.sortedSeqNums)-1]], dll.tail) // The last node should be the tail.
+			assert.Nil(t, current)                                                     // After the last node, current should be nil.
+			assert.Equal(t, nodes[tt.sortedSeqNums[len(tt.sortedSeqNums)-1]], ll.tail) // The last node should be the tail.
 
 			// Verify the total length of the payloads in the list.
-			assert.Equal(t, expectedTotalLen, dll.totalLen)
+			assert.Equal(t, expectedTotalLen, ll.totalLen)
 
 			// Verify the combined payload using ToBytes.
 			var expectedBytes []byte
 			for _, seqNum := range tt.sortedSeqNums {
 				expectedBytes = append(expectedBytes, nodes[seqNum].payload...)
 			}
-			actualBytes := dll.ToBytes()
+			actualBytes := ll.ToBytes()
 			assert.Equal(t, expectedBytes, actualBytes)
 		})
 	}

@@ -62,10 +62,10 @@ func (c *Client) Do(req *Request) (*Response, error) {
 		return nil, err
 	}
 
-	rawResp, err := conn.RecvResponse()
+	respStream, err := conn.RecvResponse()
 	if err != nil {
 		return nil, err
 	}
 
-	return ParseResponse(req.Url, rawResp)
+	return ParseResponse(req.Url, respStream)
 }
