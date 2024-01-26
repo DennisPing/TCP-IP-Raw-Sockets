@@ -9,9 +9,9 @@ import (
 
 func TestRequestToBytes(t *testing.T) {
 	tests := []struct {
-		name           string
-		request        Request
-		expectedOutput string
+		name          string
+		request       Request
+		requestString string
 	}{
 		{
 			name: "SimpleGETRequest",
@@ -30,18 +30,18 @@ func TestRequestToBytes(t *testing.T) {
 				},
 				Body: nil,
 			},
-			expectedOutput: "GET /index.html HTTP/1.0\r\n" +
-				"Host: example.com\r\n" +
+			requestString: "GET /index.html HTTP/1.0\r\n" +
 				"Connection: keep-alive\r\n" +
 				"Content-Type: text/html\r\n" +
+				"Host: example.com\r\n" +
 				"\r\n",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			actualOutput := tt.request.ToBytes()
-			assert.EqualValues(t, tt.expectedOutput, string(actualOutput))
+			reqStr := string(tt.request.ToBytes())
+			assert.Equal(t, tt.requestString, reqStr)
 		})
 	}
 }
