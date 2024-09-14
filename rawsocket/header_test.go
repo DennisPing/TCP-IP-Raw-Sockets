@@ -8,11 +8,11 @@ import (
 	"io"
 	"net/http/httputil"
 	"os"
-	"strconv"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // For console color output *************************************************************
@@ -72,107 +72,95 @@ var giantPayload string = "485454502f312e3120323030204f4b0d0a446174653a205468752
 	"c8987b9732023a32fa2f1b015509cd97c2b93f1f0ae6dea0eedff47eac0ebe7fdebf323a66eabab47f745" +
 	"2c17899852b76bf9476262fa0bca38531a5406e1ad74"
 
-func getIPHeaderFirstHandshake(t *testing.T) *IPHeader {
-	var ip IPHeader
-	ip.Version = 4
-	ip.Ihl = 5
-	ip.Tos = 0
-	ip.TotLen = 64
-	ip.Id = 0
-	ip.Flags = DF
-	ip.FragOffset = 0
-	ip.Ttl = 64
-	ip.Protocol = 6
-	ip.Checksum = 54134
-	ip.SrcIp = [4]byte{10, 110, 208, 106}
-	ip.DstIp = [4]byte{204, 44, 192, 60}
-	return &ip
+var IphFirstHandshake = IPHeader{
+	Version:    4,
+	Ihl:        5,
+	Tos:        0,
+	TotLen:     64,
+	Id:         0,
+	Flags:      DF,
+	FragOffset: 0,
+	Ttl:        64,
+	Protocol:   6,
+	Checksum:   54134,
+	SrcIp:      [4]byte{10, 110, 208, 106},
+	DstIp:      [4]byte{204, 44, 192, 60},
 }
 
-func getIPHeaderSecondHandshake(t *testing.T) *IPHeader {
-	var ip IPHeader
-	ip.Version = 4
-	ip.Ihl = 5
-	ip.Tos = 0
-	ip.TotLen = 60
-	ip.Id = 0
-	ip.Flags = DF
-	ip.FragOffset = 0
-	ip.Ttl = 42
-	ip.Protocol = 6
-	ip.Checksum = 59770
-	ip.SrcIp = [4]byte{204, 44, 192, 60}
-	ip.DstIp = [4]byte{10, 110, 208, 106}
-	return &ip
+var IphSecondHandshake = IPHeader{
+	Version:    4,
+	Ihl:        5,
+	Tos:        0,
+	TotLen:     60,
+	Id:         0,
+	Flags:      DF,
+	FragOffset: 0,
+	Ttl:        42,
+	Protocol:   6,
+	Checksum:   59770,
+	SrcIp:      [4]byte{204, 44, 192, 60},
+	DstIp:      [4]byte{10, 110, 208, 106},
 }
 
 // This is a trivial IP Header. To be used with a TCP Header that contains a payload
-func getIPHeaderWithPayload(t *testing.T) *IPHeader {
-	var ip IPHeader
-	ip.Version = 4
-	ip.Ihl = 5
-	ip.Tos = 0
-	ip.TotLen = 1426
-	ip.Id = 17988
-	ip.Flags = DF
-	ip.FragOffset = 0
-	ip.Ttl = 42
-	ip.Protocol = 6
-	ip.Checksum = 40416
-	ip.SrcIp = [4]byte{204, 44, 192, 60}
-	ip.DstIp = [4]byte{10, 110, 208, 106}
-	return &ip
+var IphWithPayload = IPHeader{
+	Version:    4,
+	Ihl:        5,
+	Tos:        0,
+	TotLen:     1426,
+	Id:         17988,
+	Flags:      DF,
+	FragOffset: 0,
+	Ttl:        42,
+	Protocol:   6,
+	Checksum:   40416,
+	SrcIp:      [4]byte{204, 44, 192, 60},
+	DstIp:      [4]byte{10, 110, 208, 106},
 }
 
-func getTCPHeaderFirstHandshake(t *testing.T) *TCPHeader {
-	var tcp TCPHeader
-	tcp.SrcPort = 50871
-	tcp.DstPort = 80
-	tcp.SeqNum = 2753993875
-	tcp.AckNum = 0
-	tcp.DataOffset = 11
-	tcp.Reserved = 0
-	tcp.Flags = SYN
-	tcp.Window = 65535
-	tcp.Checksum = 37527
-	tcp.Urgent = 0
-	tcp.Options, _ = hex.DecodeString("020405b4010303060101080abb6879f80000000004020000")
-	tcp.Payload = []byte{}
-	return &tcp
+var TcphFirstHandshake = TCPHeader{
+	SrcPort:    50871,
+	DstPort:    80,
+	SeqNum:     2753993875,
+	AckNum:     0,
+	DataOffset: 11,
+	Reserved:   0,
+	Flags:      SYN,
+	Window:     65535,
+	Checksum:   37527,
+	Urgent:     0,
+	Options:    hexToBytes("020405b4010303060101080abb6879f80000000004020000"),
+	Payload:    []byte{},
 }
 
-func getTCPHeaderSecondHandshake(t *testing.T) *TCPHeader {
-	var tcp TCPHeader
-	tcp.SrcPort = 80
-	tcp.DstPort = 50871
-	tcp.SeqNum = 1654659910
-	tcp.AckNum = 2753993876
-	tcp.DataOffset = 10
-	tcp.Reserved = 0
-	tcp.Flags = SYN | ACK
-	tcp.Window = 28960
-	tcp.Checksum = 39262
-	tcp.Urgent = 0
-	tcp.Options, _ = hex.DecodeString("0204056a0402080abeb95cb5bb6879f801030307")
-	tcp.Payload = []byte{}
-	return &tcp
+var TcphSecondHandshake = TCPHeader{
+	SrcPort:    80,
+	DstPort:    50871,
+	SeqNum:     1654659910,
+	AckNum:     2753993876,
+	DataOffset: 10,
+	Reserved:   0,
+	Flags:      SYN | ACK,
+	Window:     28960,
+	Checksum:   39262,
+	Urgent:     0,
+	Options:    hexToBytes("0204056a0402080abeb95cb5bb6879f801030307"),
+	Payload:    []byte{},
 }
 
-func getTCPHeaderWithPayload(t *testing.T) *TCPHeader {
-	var tcp TCPHeader
-	tcp.SrcPort = 80
-	tcp.DstPort = 50871
-	tcp.SeqNum = 1654659911
-	tcp.AckNum = 2753994376
-	tcp.DataOffset = 8
-	tcp.Reserved = 0
-	tcp.Flags = ACK
-	tcp.Window = 235
-	tcp.Checksum = 29098
-	tcp.Urgent = 0
-	tcp.Options, _ = hex.DecodeString("0101080abeb95f0abb687a45")
-	tcp.Payload, _ = hex.DecodeString(giantPayload)
-	return &tcp
+var TcphWithPayload = TCPHeader{
+	SrcPort:    80,
+	DstPort:    50871,
+	SeqNum:     1654659911,
+	AckNum:     2753994376,
+	DataOffset: 8,
+	Reserved:   0,
+	Flags:      ACK,
+	Window:     235,
+	Checksum:   29098,
+	Urgent:     0,
+	Options:    hexToBytes("0101080abeb95f0abb687a45"),
+	Payload:    hexToBytes(giantPayload),
 }
 
 // Test bit shifting flags **************************************************************
@@ -180,98 +168,93 @@ func getTCPHeaderWithPayload(t *testing.T) *TCPHeader {
 func Test_IPFlags(t *testing.T) {
 	type test struct {
 		flags  IPFlags // uint16
-		binary string  // Human readable form
+		binary uint16  // Human readable binary
 	}
 	tests := []test{
 		{
 			flags:  RF,
-			binary: "1000000000000000",
+			binary: 0b1000000000000000,
 		},
 		{
 			flags:  DF,
-			binary: "0100000000000000",
+			binary: 0b0100000000000000,
 		},
 		{
 			flags:  MF,
-			binary: "0010000000000000",
+			binary: 0b0010000000000000,
 		},
 		{
 			flags:  DF | MF,
-			binary: "0110000000000000",
+			binary: 0b0110000000000000,
 		},
 		{
 			flags:  RF | DF | MF,
-			binary: "1110000000000000",
+			binary: 0b1110000000000000,
 		},
 	}
 	for _, tt := range tests {
-		binary := fmt.Sprintf("%016b", tt.flags)
-		assert.Equal(t, tt.binary, binary)
+		assert.Equal(t, tt.binary, uint16(tt.flags))
 
 		// Do the reverse
-		binaryToFlags, _ := strconv.ParseUint(tt.binary, 2, 16)
-		assert.Equal(t, tt.flags, IPFlags(binaryToFlags))
+		assert.Equal(t, tt.flags, IPFlags(tt.binary))
 	}
 }
 
 func Test_TCPFlags(t *testing.T) {
 	type test struct {
 		flags  TCPFlags // uint8
-		binary string   // Human readable form
+		binary uint8    // Human readable binary
 	}
 	tests := []test{
 		{
 			flags:  FIN,
-			binary: "00000001",
+			binary: 0b00000001,
 		},
 		{
 			flags:  SYN,
-			binary: "00000010",
+			binary: 0b00000010,
 		},
 		{
 			flags:  RST,
-			binary: "00000100",
+			binary: 0b00000100,
 		},
 		{
 			flags:  PSH,
-			binary: "00001000",
+			binary: 0b00001000,
 		},
 		{
 			flags:  ACK,
-			binary: "00010000",
+			binary: 0b00010000,
 		},
 		{
 			flags:  SYN | ACK,
-			binary: "00010010",
+			binary: 0b00010010,
 		},
 		{
 			flags:  FIN | ACK,
-			binary: "00010001",
+			binary: 0b00010001,
 		},
 		{
 			flags:  ACK | PSH | FIN,
-			binary: "00011001",
+			binary: 0b00011001,
 		},
 		{
 			flags:  CWR | ECE | URG | ACK | PSH | RST | SYN | FIN,
-			binary: "11111111",
+			binary: 0b11111111,
 		},
 	}
 	for _, tt := range tests {
-		binary := fmt.Sprintf("%08b", tt.flags)
-		assert.Equal(t, tt.binary, binary)
+		assert.Equal(t, tt.binary, uint8(tt.flags))
 
 		// Do the reverse
-		binaryToFlags, _ := strconv.ParseUint(tt.binary, 2, 8)
-		assert.Equal(t, tt.flags, TCPFlags(binaryToFlags))
+		assert.Equal(t, tt.flags, TCPFlags(tt.binary))
 	}
 }
 
 // Test checksum calculation ************************************************************
 
 func Test_IPChecksumHandshake01(t *testing.T) {
-	ip := getIPHeaderFirstHandshake(t)
-	ipBytes := ip.ToBytes()
+	ipBytes := IphFirstHandshake.ToBytes()
 	wiresharkIpHex := "45000040000040004006d3760a6ed06acc2cc03c"
 	if IPChecksum(ipBytes) != 0 {
 		t.Errorf(Red("1st handshake IP checksum failed"))
@@ -288,11 +271,11 @@ func Test_IPChecksumHandshake01(t *testing.T) {
 }
 
 func Test_TCPChecksumHandshake01(t *testing.T) {
-	ip := getIPHeaderFirstHandshake(t)
-	tcp := getTCPHeaderFirstHandshake(t)
-	tcpBytes := tcp.ToBytes(ip)
+	ip := IphFirstHandshake
+	tcp := TcphFirstHandshake
+	tcpBytes := tcp.ToBytes(&ip)
 	wiresharkTcpHex := "c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
-	if TCPChecksum(tcpBytes, ip) != 0 {
+	if TCPChecksum(tcpBytes, &ip) != 0 {
 		t.Errorf(Red("1st handshake TCP checksum failed"))
 		tcpHex := hex.EncodeToString(tcpBytes)
 		printExpGot(wiresharkTcpHex, tcpHex)
@@ -307,7 +290,7 @@ func Test_TCPChecksumHandshake01(t *testing.T) {
 }
 
 func Test_IPChecksumHandshake02(t *testing.T) {
-	ip := getIPHeaderSecondHandshake(t)
+	ip := IphSecondHandshake
 	ipBytes := ip.ToBytes()
 	wiresharkIpHex := "4500003c000040002a06e97acc2cc03c0a6ed06a"
 	if IPChecksum(ipBytes) != 0 {
@@ -325,18 +308,18 @@ func Test_IPChecksumHandshake02(t *testing.T) {
 }
 
 func Test_TCPChecksumHandshake02(t *testing.T) {
-	ip := getIPHeaderSecondHandshake(t)
-	tcp := getTCPHeaderSecondHandshake(t)
-	tcpBytes := tcp.ToBytes(ip)
+	ip := IphSecondHandshake
+	tcp := TcphSecondHandshake
+	tcpBytes := tcp.ToBytes(&ip)
 	wiresharkTcpHex := "0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
 
-	assert.Equal(t, uint16(0), TCPChecksum(tcpBytes, ip), "2nd handshake TCP checksum failed")
+	assert.Equal(t, uint16(0), TCPChecksum(tcpBytes, &ip), "2nd handshake TCP checksum failed")
 	assert.Equal(t, wiresharkTcpHex, hex.EncodeToString(tcpBytes), "2nd handshake TCP encoding failed")
 }
 
 // This is a trivial test. Just to make sure the next test works properly.
 func Test_IPChecksumWithPayload(t *testing.T) {
-	ip := getIPHeaderWithPayload(t)
+	ip := IphWithPayload
 	ipBytes := ip.ToBytes()
 	wiresharkIpHex := "45000592464440002a069de0cc2cc03c0a6ed06a"
 	if IPChecksum(ipBytes) != 0 {
@@ -354,11 +337,11 @@ func Test_IPChecksumWithPayload(t *testing.T) {
 }
 
 func Test_TCPChecksumWithPayload(t *testing.T) {
-	ip := getIPHeaderWithPayload(t)
-	tcp := getTCPHeaderWithPayload(t)
-	tcpBytes := tcp.ToBytes(ip)
+	ip := IphWithPayload
+	tcp := TcphWithPayload
+	tcpBytes := tcp.ToBytes(&ip)
 	wiresharkTcpHex := "0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + giantPayload
-	if TCPChecksum(tcpBytes, ip) != 0 {
+	if TCPChecksum(tcpBytes, &ip) != 0 {
 		t.Errorf(Red("TCP checksum with payload failed"))
 		tcpHex := hex.EncodeToString(tcpBytes)
 		printExpGot(wiresharkTcpHex, tcpHex)
@@ -488,64 +471,49 @@ func Test_GetResponsePayload(t *testing.T) {
 // Test convert headers to bytes and back to headers ************************************
 
 func Test_ConvertIP01(t *testing.T) {
-	ip := getIPHeaderFirstHandshake(t)
+	ip := IphFirstHandshake
 	ipBytes := ip.ToBytes()
 	ip2 := NewIPHeader(ipBytes)
-	if compareIPHeaders(*ip, *ip2) == false {
-		t.Errorf(Red("1st handshake IP header conversion failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", ip, ip2)
-	}
+	assert.Equal(t, ip, *ip2, "1st handshake IP header conversion failed")
 }
 
 func Test_ConvertIP02(t *testing.T) {
-	ip := getIPHeaderSecondHandshake(t)
+	ip := IphSecondHandshake
 	ipBytes := ip.ToBytes()
 	ip2 := NewIPHeader(ipBytes)
-	if compareIPHeaders(*ip, *ip2) == false {
-		t.Errorf(Red("2nd handshake IP header conversion failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", ip, ip2)
-	}
+	assert.Equal(t, ip, *ip2, "2nd handshake IP header conversion failed")
 }
 
 func Test_ConvertTCP01(t *testing.T) {
-	ip := getIPHeaderFirstHandshake(t)
-	tcp := getTCPHeaderFirstHandshake(t)
-	tcpBytes := tcp.ToBytes(ip)
+	ip := IphFirstHandshake
+	tcp := TcphFirstHandshake
+	tcpBytes := tcp.ToBytes(&ip)
 	tcp2 := NewTCPHeader(tcpBytes)
-	if compareTCPHeaders(*tcp, *tcp2) == false {
-		t.Errorf(Red("1st handshake TCP header conversion failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
-	}
+	assert.Equal(t, tcp, *tcp2, "1st handshake TCP header conversion failed")
 }
 
 func Test_ConvertTCP02(t *testing.T) {
-	ip := getIPHeaderSecondHandshake(t)
-	tcp := getTCPHeaderSecondHandshake(t)
-	tcpBytes := tcp.ToBytes(ip)
+	ip := IphSecondHandshake
+	tcp := TcphSecondHandshake
+	tcpBytes := tcp.ToBytes(&ip)
 	tcp2 := NewTCPHeader(tcpBytes)
-	if compareTCPHeaders(*tcp, *tcp2) == false {
-		t.Errorf(Red("2nd handshake TCP header conversion failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
-	}
+	assert.Equal(t, tcp, *tcp2, "2nd handshake TCP header conversion failed")
 }
 
 func Test_ConvertTCPWithPayload(t *testing.T) {
-	ip := getIPHeaderWithPayload(t)
-	tcp := getTCPHeaderWithPayload(t)
-	tcpBytes := tcp.ToBytes(ip)
+	ip := IphWithPayload
+	tcp := TcphWithPayload
+	tcpBytes := tcp.ToBytes(&ip)
 	tcp2 := NewTCPHeader(tcpBytes)
-	if compareTCPHeaders(*tcp, *tcp2) == false {
-		t.Errorf(Red("TCP header conversion with payload failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", tcp, tcp2)
-	}
+	assert.Equal(t, tcp, *tcp2, "TCP header conversion with payload failed")
 }
 
 // Test wrapping headers into bytes *****************************************************
 
 func Test_Wrap01(t *testing.T) {
-	ip := getIPHeaderFirstHandshake(t)
-	tcp := getTCPHeaderFirstHandshake(t)
-	packet := Wrap(ip, tcp)
+	ip := IphFirstHandshake
+	tcp := TcphFirstHandshake
+	packet := Wrap(&ip, &tcp)
 	packetHex := hex.EncodeToString(packet)
 	wiresharkHex := "45000040000040004006d3760a6ed06acc2cc03c" +
 		"c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
@@ -557,9 +525,9 @@ func Test_Wrap01(t *testing.T) {
 }
 
 func Test_Wrap02(t *testing.T) {
-	ip := getIPHeaderSecondHandshake(t)
-	tcp := getTCPHeaderSecondHandshake(t)
-	packet := Wrap(ip, tcp)
+	ip := IphSecondHandshake
+	tcp := TcphSecondHandshake
+	packet := Wrap(&ip, &tcp)
 	packetHex := hex.EncodeToString(packet)
 	wiresharkHex := "4500003c000040002a06e97acc2cc03c0a6ed06a" +
 		"0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
@@ -571,9 +539,9 @@ func Test_Wrap02(t *testing.T) {
 }
 
 func Test_WrapWithPayload(t *testing.T) {
-	ip := getIPHeaderWithPayload(t)
-	tcp := getTCPHeaderWithPayload(t)
-	packet := Wrap(ip, tcp)
+	ip := IphWithPayload
+	tcp := TcphWithPayload
+	packet := Wrap(&ip, &tcp)
 	packetHex := hex.EncodeToString(packet)
 	wiresharkHex := "45000592464440002a069de0cc2cc03c0a6ed06a" +
 		"0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + giantPayload
@@ -590,58 +558,37 @@ func Test_Unwrap01(t *testing.T) {
 	wiresharkHex := "45000040000040004006d3760a6ed06acc2cc03c" +
 		"c6b70050a4269c9300000000b002ffff92970000020405b4010303060101080abb6879f80000000004020000"
 	wiresharkBytes, _ := hex.DecodeString(wiresharkHex)
-	ip, tcp, _ := Unwrap(wiresharkBytes)
-	if compareIPHeaders(*ip, *getIPHeaderFirstHandshake(t)) == false {
-		t.Errorf(Red("1st handshake IP header unwrap failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderFirstHandshake(t), ip)
-	}
-	if compareTCPHeaders(*tcp, *getTCPHeaderFirstHandshake(t)) == false {
-		t.Errorf(Red("1st handshake TCP header unwrap failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", getTCPHeaderFirstHandshake(t), tcp)
-	}
-	if !bytes.Equal([]byte{}, tcp.Payload) {
-		t.Errorf(Red("1st handshake Payload unwrap failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", []byte{}, tcp.Payload)
-	}
+	ip, tcp, err := Unwrap(wiresharkBytes)
+
+	require.NoError(t, err)
+	assert.Equal(t, IphFirstHandshake, *ip, "1st handshake IP header unwrap failed")
+	assert.Equal(t, TcphFirstHandshake, *tcp, "1st handshake TCP header unwrap failed")
+	assert.Equal(t, []byte{}, tcp.Payload, "1st handshake Payload unwrap failed")
 }
 
 func Test_Unwrap02(t *testing.T) {
 	wiresharkHex := "4500003c000040002a06e97acc2cc03c0a6ed06a" +
 		"0050c6b762a01b46a4269c94a0127120995e00000204056a0402080abeb95cb5bb6879f801030307"
 	wiresharkBytes, _ := hex.DecodeString(wiresharkHex)
-	ip, tcp, _ := Unwrap(wiresharkBytes)
-	if compareIPHeaders(*ip, *getIPHeaderSecondHandshake(t)) == false {
-		t.Errorf(Red("2nd handshake IP header unwrap failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", getIPHeaderSecondHandshake(t), ip)
-	}
-	if compareTCPHeaders(*tcp, *getTCPHeaderSecondHandshake(t)) == false {
-		t.Errorf(Red("2nd handshake TCP header unwrap failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", getTCPHeaderSecondHandshake(t), tcp)
-	}
-	if !bytes.Equal([]byte{}, tcp.Payload) {
-		t.Errorf(Red("2nd handshake Payload unwrap failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", []byte{}, tcp.Payload)
-	}
+	ip, tcp, err := Unwrap(wiresharkBytes)
+
+	require.NoError(t, err)
+	assert.Equal(t, IphSecondHandshake, *ip, "2nd handshake IP header unwrap failed")
+	assert.Equal(t, TcphSecondHandshake, *tcp, "2nd handshake TCP header unwrap failed")
+	assert.Equal(t, []byte{}, tcp.Payload, "2nd handshake Payload unwrap failed")
 }
 
 func Test_UnwrapWithPayload(t *testing.T) {
 	wiresharkHex := "45000592464440002a069de0cc2cc03c0a6ed06a" +
 		"0050c6b762a01b47a4269e88801000eb71aa00000101080abeb95f0abb687a45" + giantPayload
 	wiresharkBytes, _ := hex.DecodeString(wiresharkHex)
-	ip, tcp, _ := Unwrap(wiresharkBytes)
-	if compareIPHeaders(*ip, *getIPHeaderWithPayload(t)) == false {
-		t.Errorf(Red("IP header unwrap with payload failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", *getIPHeaderWithPayload(t), ip)
-	}
-	if compareTCPHeaders(*tcp, *getTCPHeaderWithPayload(t)) == false {
-		t.Errorf(Red("TCP header unwrap with payload failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", getTCPHeaderWithPayload(t), tcp)
-	}
+	ip, tcp, err := Unwrap(wiresharkBytes)
+
+	require.NoError(t, err)
+	assert.Equal(t, IphWithPayload, *ip, "IP header unwrap with payload failed")
+	assert.Equal(t, TcphWithPayload, *tcp, "TCP header unwrap with payload failed")
 	payloadBytes, _ := hex.DecodeString(giantPayload)
-	if !bytes.Equal(payloadBytes, tcp.Payload) {
-		t.Errorf(Red("Payload unwrap with payload failed"))
-		fmt.Printf("Exp: %v\nGot: %v\n", []byte(giantPayload), tcp.Payload)
-	}
+	assert.Equal(t, payloadBytes, tcp.Payload, "Payload unwrap with payload failed")
 }
 
 // Test unwrapping a corrupted packet and checking for errors ***************************
@@ -762,79 +709,7 @@ func printExpGot(exp, got string) {
 	fmt.Printf("Got: %v\n", splitHex(got))
 }
 
-func compareIPHeaders(ip1 IPHeader, ip2 IPHeader) bool {
-	if ip1.Version != ip2.Version {
-		return false
-	}
-	if ip1.Ihl != ip2.Ihl {
-		return false
-	}
-	if ip1.Tos != ip2.Tos {
-		return false
-	}
-	if ip1.TotLen != ip2.TotLen {
-		return false
-	}
-	if ip1.Id != ip2.Id {
-		return false
-	}
-	if ip1.Flags != ip2.Flags {
-		return false
-	}
-	if ip1.FragOffset != ip2.FragOffset {
-		return false
-	}
-	if ip1.Ttl != ip2.Ttl {
-		return false
-	}
-	if ip1.Protocol != ip2.Protocol {
-		return false
-	}
-	if ip1.Checksum != ip2.Checksum {
-		return false
-	}
-	if ip1.SrcIp != ip2.SrcIp {
-		return false
-	}
-	if ip1.DstIp != ip2.DstIp {
-		return false
-	}
-	return true
-}
-
-func compareTCPHeaders(tcp1 TCPHeader, tcp2 TCPHeader) bool {
-	if tcp1.SrcPort != tcp2.SrcPort {
-		return false
-	}
-	if tcp1.DstPort != tcp2.DstPort {
-		return false
-	}
-	if tcp1.SeqNum != tcp2.SeqNum {
-		return false
-	}
-	if tcp1.AckNum != tcp2.AckNum {
-		return false
-	}
-	if tcp1.DataOffset != tcp2.DataOffset {
-		return false
-	}
-	if tcp1.Reserved != tcp2.Reserved {
-		return false
-	}
-	if tcp1.Flags != tcp2.Flags {
-		return false
-	}
-	if tcp1.Window != tcp2.Window {
-		return false
-	}
-	if tcp1.Checksum != tcp2.Checksum {
-		return false
-	}
-	if tcp1.Urgent != tcp2.Urgent {
-		return false
-	}
-	if !bytes.Equal(tcp1.Options, tcp2.Options) {
-		return false
-	}
-	return true
+func hexToBytes(hexStr string) []byte {
+	data, _ := hex.DecodeString(hexStr)
+	return data
 }

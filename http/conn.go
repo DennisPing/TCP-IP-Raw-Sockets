@@ -267,13 +267,14 @@ func getNextNumbers(tcp *rawsocket.TCPHeader) (nextSeqNum, nextAckNum uint32) {
 	return nextSeqNum, nextAckNum
 }
 
-// Make a packet which contains IP header, TCP header, and payload
+// Make a packet which contains IPheader, TCP header, and payload
 func (c *Conn) makePacket(seqNum, ackNum uint32, payload []byte, tcpFlags rawsocket.TCPFlags, tcpOptions []byte) []byte {
+	totalLen := 20 + uint16(len(tcpOptions)/4) + uint16(len(payload))
 	ip := rawsocket.IPHeader{
 		Version:    4,
 		Ihl:        5,
 		Tos:        0,
-		TotLen:     1, // Wrap() will fill this in
+		TotLen:     totalLen,
 		Id:         0,
 		Flags:      rawsocket.DF,
 		FragOffset: 0,
@@ -283,7 +284,7 @@ func (c *Conn) makePacket(seqNum, ackNum uint32, payload []byte, tcpFlags rawsoc
 		SrcIp:      c.localIp,
 		DstIp:      c.remoteIp,
 	}
-	dataOffset := uint8(5 + len(tcpOptions)/4)
+	dataOffset := 5 + uint8(len(tcpOptions)/4)
 	tcp := rawsocket.TCPHeader{
 		SrcPort:    c.localPort,
 		DstPort:    c.remotePort,
