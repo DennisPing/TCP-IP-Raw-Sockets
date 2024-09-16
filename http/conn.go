@@ -17,19 +17,15 @@ import (
 // Conn is a custom network connection that uses raw sockets
 type Conn struct {
 	hostname      string
-	localIp       [4]byte
-	localPort     uint16
-	remoteIp      [4]byte
-	remotePort    uint16
-	localAddr     syscall.SockaddrInet4 // For syscall convenience
-	remoteAddr    syscall.SockaddrInet4 // For syscall convenience
-	advWindow     uint16                // Advertised window
-	mss           uint16                // Max segment size
-	wScale        uint8                 // Window scale
-	sendFd        int
-	recvFd        int
+	localAddr     syscall.SockaddrInet4
+	remoteAddr    syscall.SockaddrInet4
+	advWindow     uint16 // Advertised window
+	mss           uint16 // Max segment size
+	wScale        uint8  // Window scale
+	sendFd        int    // Send file descriptor
+	recvFd        int    // Recv file descriptor
 	initialSeqNum uint32 // The initial seqNum after connect(). Only used once.
-	initialAckNum uint32 // The initial seqNum after connect(). Only used once.
+	initialAckNum uint32 // The initial ackNum after connect(). Only used once.
 }
 
 // Verbose formatter
@@ -72,10 +68,6 @@ func NewConn(hostname string, timeout time.Duration) (*Conn, error) {
 
 	conn := &Conn{
 		hostname:   hostname,
-		localIp:    localIP,
-		localPort:  randomPort,
-		remoteIp:   remoteIP,
-		remotePort: 80,
 		localAddr:  syscall.SockaddrInet4{Port: int(randomPort), Addr: localIP},
 		remoteAddr: syscall.SockaddrInet4{Port: 80, Addr: remoteIP},
 		advWindow:  65535,
@@ -221,7 +213,7 @@ func (c *Conn) recv() (tcp *rawsocket.TCPHeader, err error) {
 			return nil, fmt.Errorf("error syscall.Recvfrom: %w", err)
 		}
 
-		if from.(*syscall.SockaddrInet4).Addr != c.remoteIp {
+		if from.(*syscall.SockaddrInet4).Addr != c.remoteAddr.Addr {
 			continue
 		}
 
@@ -281,13 +273,13 @@ func (c *Conn) makePacket(seqNum, ackNum uint32, payload []byte, tcpFlags rawsoc
 		Ttl:        32,
 		Protocol:   6,
 		Checksum:   0,
-		SrcIp:      c.localIp,
-		DstIp:      c.remoteIp,
+		SrcIp:      c.localAddr.Addr,
+		DstIp:      c.remoteAddr.Addr,
 	}
 	dataOffset := 5 + uint8(len(tcpOptions)/4)
 	tcp := rawsocket.TCPHeader{
-		SrcPort:    c.localPort,
-		DstPort:    c.remotePort,
+		SrcPort:    uint16(c.localAddr.Port),
+		DstPort:    uint16(c.remoteAddr.Port),
 		SeqNum:     seqNum,
 		AckNum:     ackNum,
 		DataOffset: dataOffset,
